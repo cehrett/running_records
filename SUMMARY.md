@@ -5,6 +5,7 @@
 ## Software Stack
 
 * [Prerequisites](software-stack/prerequisites/README.md)
+  * [Fuzzy](software-stack/prerequisites/fuzzy.md)
   * [Python Virtual Environments](software-stack/prerequisites/python-virtual-environments.md)
   * [Introduction to IBM Cloud](software-stack/prerequisites/introduction-to-ibm-cloud.md)
   * [Jupyter Notebooks](software-stack/prerequisites/jupyter-notebooks.md)
