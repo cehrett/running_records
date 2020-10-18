@@ -1,6 +1,6 @@
 # Table of contents
 
-* [Initial page](README.md)
+* [Initial page2](README.md)
 
 ## Software Stack
 
