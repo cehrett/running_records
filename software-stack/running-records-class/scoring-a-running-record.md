@@ -1,5 +1,15 @@
 # Scoring a Running Record
 
+## Frequent Actions
+
+| Action | Description |
+| :--- | :--- |
+| Correct Response | The child has read a word correctly. |
+| Substitution | The child has read one word for another. This means that we need to denote that the child has substituted a word. |
+| Self-Correction | When a child reads a word incorrectly, then immediately corrects the error, this is a self-correction. Here, we have to note that the child's incorrect word, before noting the actual correct text. |
+| Insertion | When a child adds a word, this is an insertion. This is different from a substitution, because it can act as a break in the sentence. For example, if the correct text was "'Yes it is!' said Mom," but the child says, "Yes, it is, said my mom," we need to note that the word "my" is an insertion, because the child is not substituting this word for another. |
+| Omission | When a child skips a word, this is called an omission. This involves the child completely skipping the word from the response. |
+
 ## Repetitions
 
 When we score a running record, we are often concerned with repetition. These repetitions occur when a child repeats word\(s\) that came earlier in the text. There are multiple types of repetitions that we need to record based on the child's reading.
