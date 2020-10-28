@@ -2,7 +2,7 @@
 description: Introduction to the Project
 ---
 
-# Initial page2
+# Initial page
 
 ## Abstract
 
