@@ -12,11 +12,11 @@
   * [Introduction to IBM Cloud](software-stack/prerequisites/introduction-to-ibm-cloud.md)
   * [JiWER](software-stack/prerequisites/jiwer.md)
 * [Running Records Class](software-stack/running-records-class/README.md)
+  * [Transcribing a Running Record with Watson Speech-To-Text](software-stack/running-records-class/transcribing-a-running-record.md)
   * [Scoring a Running Record](software-stack/running-records-class/scoring-a-running-record.md)
 
 ## Testing
 
-* [Transcribing a Running Record with Watson Speech-To-Text](testing/transcribing-a-running-record.md)
 * [Model Evaluation](testing/model-evaluation.md)
 
 ## Deployment

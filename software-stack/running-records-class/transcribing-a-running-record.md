@@ -10,7 +10,7 @@ In order to transcribe the audio recordings of the children reading audio, each 
 
 When developing these transcripts, we made sure to account for each of our team members' individual styles of transcribing audio. In order to overcome this, each transcription was "cleaned" by a second team member in order to iron out any issues. Additionally, for our first round of training we chose to remove the %HESITATION symbols from our human-generated transcripts to reduce the potential strain on our word-error calculations.
 
-{% page-ref page="model-evaluation.md" %}
+{% page-ref page="../../testing/model-evaluation.md" %}
 
 ## Implementing the Model
 
@@ -18,11 +18,11 @@ With the model now trained, we can now implement our model and transcribe new re
 
 {% tabs %}
 {% tab title="Generating WSTT Output" %}
-![UML Activity Diagram for Generating WSTT Output](../.gitbook/assets/watson-speech-to-text-output%20%281%29.png)
+![UML Activity Diagram for Generating WSTT Output](../../.gitbook/assets/watson-speech-to-text-output%20%281%29.png)
 {% endtab %}
 
 {% tab title="Example Transcript" %}
-![An example Watson Transcript](../.gitbook/assets/image.png)
+![An example Watson Transcript](../../.gitbook/assets/image.png)
 {% endtab %}
 {% endtabs %}
 
