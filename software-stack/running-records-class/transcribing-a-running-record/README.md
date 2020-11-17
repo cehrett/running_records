@@ -10,17 +10,15 @@ In order to transcribe the audio recordings of the children reading audio, each 
 
 #### Note on Hesitations
 
-When Watson transcribes audio, it will also detect when there is a hesitation in the speaker's voice. In order to compensate for this, each training audio has been trained to include approximate locations of the hesitations.
+When Watson transcribes audio, it will also detect when there is a hesitation in the speaker's voice. In order to compensate for this, each training audio has been trained to include approximate locations of the hesitations. 
 
-### Model Evaluation
-
-Further information will soon be reported based on the effectiveness of our model. Currently, we plan on checking to see if our model has any demographic blind spots, and our hope is to minimize those blind spots to provide a more fair model.
+{% page-ref page="model-evaluation.md" %}
 
 ## Implementing the Model
 
 With the model now trained, we can now implement our model and transcribe new recordings of the child's audio. This can be done by passing audio files to the custom-trained model. When running the model, we also ask it to return all of its hypotheses. In other words, if it believes there is a chance that another word that satisfies the criteria, it will also suggest that word. This results in an output similar to this:
 
-![An example Watson Transcript](../../.gitbook/assets/image.png)
+![An example Watson Transcript](../../../.gitbook/assets/image.png)
 
 In this example transcript, we see that it provides multiple hypotheses for the word at index 15 \(spoons, points and bones\). This will be helpful for investigating errors our model makes in transcription.
 
