@@ -16,7 +16,15 @@ When developing these transcripts, we made sure to account for each of our team 
 
 With the model now trained, we can now implement our model and transcribe new recordings of the child's audio. This can be done by passing audio files to the custom-trained model. When running the model, we also ask it to return all of its hypotheses. In other words, if it believes there is a chance that another word that satisfies the criteria, it will also suggest that word. This results in an output similar to this:
 
+{% tabs %}
+{% tab title="Generating WSTT Output" %}
+![UML Activity Diagram for Generating WSTT Output](../../../.gitbook/assets/watson-speech-to-text-output%20%281%29.png)
+{% endtab %}
+
+{% tab title="Example Transcript" %}
 ![An example Watson Transcript](../../../.gitbook/assets/image.png)
+{% endtab %}
+{% endtabs %}
 
 In this example transcript, we see that it provides multiple hypotheses for the word at index 15 \(spoons, points and bones\). This will be helpful for investigating errors our model makes in transcription.
 
