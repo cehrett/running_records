@@ -2,6 +2,10 @@
 
 * [Initial page](README.md)
 
+## Requirements
+
+* [Functional and Non-Functional Requirements](requirements/functional-and-non-functional-requirements.md)
+
 ## Design <a id="software-stack"></a>
 
 * [Tools Implemented for Project](software-stack/prerequisites/README.md)
@@ -11,4 +15,12 @@
   * [Transcribing a Running Record with Watson Speech-To-Text](software-stack/running-records-class/transcribing-a-running-record/README.md)
     * [Model Evaluation](software-stack/running-records-class/transcribing-a-running-record/model-evaluation.md)
   * [Scoring a Running Record](software-stack/running-records-class/scoring-a-running-record.md)
+
+## Testing
+
+* [Untitled](testing/untitled.md)
+
+## Deployment
+
+* [Untitled](deployment/untitled.md)
 
