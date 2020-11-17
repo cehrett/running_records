@@ -8,9 +8,7 @@ For this project, we will be using IBM Cloud's Watson Speech-to-Text service in 
 
 In order to transcribe the audio recordings of the children reading audio, each of our research team members transcribed 7-9 recordings of children completing a Running Record exam. Each of these exams came from a diverse range of schools in South Carolina, with all of them being tested against the text **Old Man Moss**. By transcribing these audio recordings by hand, we were able to feed these recordings into a custom Watson Speech-To-Text Model that will be trained on the children's readings. As a result, our hope is that we can develop a baseline in seeing if Watson can accurately transcribe speech to text.
 
-#### Note on Hesitations
-
-When Watson transcribes audio, it will also detect when there is a hesitation in the speaker's voice. In order to compensate for this, each training audio has been trained to include approximate locations of the hesitations. 
+When developing these transcripts, we made sure to account for each of our team members' individual styles of transcribing audio. In order to overcome this, each transcription was "cleaned" by a second team member in order to iron out any issues. Additionally, for our first round of training we chose to remove the %HESITATION symbols from our human-generated transcripts to reduce the potential strain on our word-error calculations.
 
 {% page-ref page="model-evaluation.md" %}
 
