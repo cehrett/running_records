@@ -8,7 +8,7 @@
 
 ## Design <a id="software-stack"></a>
 
-* [Tools Implemented for Project](software-stack/prerequisites/README.md)
+* [External Services and Libraries](software-stack/prerequisites/README.md)
   * [Introduction to IBM Cloud](software-stack/prerequisites/introduction-to-ibm-cloud.md)
   * [JiWER](software-stack/prerequisites/jiwer.md)
 * [Running Records Class](software-stack/running-records-class/README.md)
