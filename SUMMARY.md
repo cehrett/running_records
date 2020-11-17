@@ -2,7 +2,7 @@
 
 * [Initial page](README.md)
 
-## Software Stack
+## Design <a id="software-stack"></a>
 
 * [Tools Implemented for Project](software-stack/prerequisites/README.md)
   * [Introduction to IBM Cloud](software-stack/prerequisites/introduction-to-ibm-cloud.md)
