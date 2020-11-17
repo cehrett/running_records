@@ -8,7 +8,7 @@ description: Similarity measures for automatic speech recognition evaluation
 
 JiWER is a python package that can be used to calculate the Word Error Rate \(WER\) of an automatic speech recognition system. In addition approximating the WER, it can also approximate the Match Error Rate \(MER\), Word Information Lost \(WIL\) and Word Information Preserved \(WIP\) of a transcript. For this research project, we will be using JiWER to evaluate our Watson Speech-to-Text model and determine its overall effectiveness, as well as its demographic blind spots if any exist.
 
-{% page-ref page="../running-records-class/transcribing-a-running-record/model-evaluation.md" %}
+{% page-ref page="../../testing/model-evaluation.md" %}
 
 ### Example Case
 

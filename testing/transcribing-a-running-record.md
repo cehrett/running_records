@@ -18,11 +18,11 @@ With the model now trained, we can now implement our model and transcribe new re
 
 {% tabs %}
 {% tab title="Generating WSTT Output" %}
-![UML Activity Diagram for Generating WSTT Output](../../../.gitbook/assets/watson-speech-to-text-output%20%281%29.png)
+![UML Activity Diagram for Generating WSTT Output](../.gitbook/assets/watson-speech-to-text-output%20%281%29.png)
 {% endtab %}
 
 {% tab title="Example Transcript" %}
-![An example Watson Transcript](../../../.gitbook/assets/image.png)
+![An example Watson Transcript](../.gitbook/assets/image.png)
 {% endtab %}
 {% endtabs %}
 
