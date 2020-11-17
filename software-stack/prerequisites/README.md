@@ -4,5 +4,13 @@ description: >-
   GitHub repository.
 ---
 
-# Prerequisites
+# Tools Implemented for Project
+
+
+
+{% page-ref page="introduction-to-ibm-cloud.md" %}
+
+{% page-ref page="jiwer.md" %}
+
+
 
