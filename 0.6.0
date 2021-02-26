@@ -1,0 +1,8 @@
+Looking in links: https://download.pytorch.org/whl/torch_stable.html
+Collecting torchaudio
+  Downloading https://download.pytorch.org/whl/torchaudio-0.7.2-cp37-none-win_amd64.whl (103 kB)
+Requirement already satisfied: torch==1.7.1 in c:\users\carl\.conda\envs\running_records\lib\site-packages (from torchaudio) (1.7.1)
+Requirement already satisfied: typing-extensions in c:\users\carl\.conda\envs\running_records\lib\site-packages (from torch==1.7.1->torchaudio) (3.7.4.3)
+Requirement already satisfied: numpy in c:\users\carl\.conda\envs\running_records\lib\site-packages (from torch==1.7.1->torchaudio) (1.19.1)
+Installing collected packages: torchaudio
+Successfully installed torchaudio-0.7.2
