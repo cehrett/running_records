@@ -16,5 +16,5 @@ This project was started under the IBM Watson in the Watt Creative Inquiry at Cl
 
 ## Github Repository
 
-To access the GitHub Repository, click on[ this link](https://github.com/cehrett/running_records/blob/master/processs_running_record_update.ipynb).
+To access the GitHub Repository, click on [this link](https://github.com/cehrett/running_records/blob/master/processs_running_record_update.ipynb).
 
