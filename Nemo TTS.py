@@ -1,5 +1,3 @@
-
-import numpy as np
 from nemo.collections.tts.models.base import SpectrogramGenerator, Vocoder
 import sys
 import numpy as np
@@ -116,7 +114,6 @@ def convert_to_audio(sentence):
   #if not TwoStagesModel:
   vocoder = Vocoder.from_pretrained(pretrained_model_vocoder)
   # All spectrogram generators start by parsing raw strings to a tokenized version of the string
-  #parsed = spec_generator.parse(sys.argv[1])
   parsed = spec_generator.parse(sentence)
 
   # They then take the tokenized string and produce a spectrogram
