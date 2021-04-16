@@ -1,8 +1,6 @@
 
 import numpy as np
 from nemo.collections.tts.models.base import SpectrogramGenerator, Vocoder
-import sys
-import numpy as np
 import random
 
 def convert_to_audio(sentence, spectrogram_generator='random', audio_generator='random'):
@@ -96,9 +94,11 @@ def convert_to_audio(sentence, spectrogram_generator='random', audio_generator='
   # Finally, a vocoder converts the spectrogram to audio
   audio = vocoder.convert_spectrogram_to_audio(spec=spectrogram)
   
-  # converting audio type if needed
-  if audio_generator == "hifigan" or audio_generator == "melgan" or audio_generator =="two_stages":
+  # converting audio type to a numpy array if needed
+  try:
     audio = audio.detach().numpy()
+  except:
+    print('Audio already is numpy array')
   print('Spectrogram Generator: ' + spectrogram_generator)
   print('Audio Generator: ' + audio_generator)
 
