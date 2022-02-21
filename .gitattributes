@@ -8,3 +8,4 @@
 *.gitignore filter=lfs diff=lfs merge=lfs -text
 /repetition_data_generation/archived/README filter=lfs diff=lfs merge=lfs -text
 *.txt filter=lfs diff=lfs merge=lfs -text
+*.en filter=lfs diff=lfs merge=lfs -text
