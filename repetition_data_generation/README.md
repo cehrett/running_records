@@ -10,9 +10,29 @@ into TTS and ASR models that generate the audio data.
 ### The First Time
 
 The first time you run this, you will need to log into the cluster and do a few
-things. This can be done in a Jupyter Notebook instance.
+things. This can be done in a Jupyter Notebook instance or by logging in over
+ssh.
 
-1. Clone this repository to the cluster.
+#### Git LFS Clone
+
+So, for this project we are currently using Git Large File Storage. This is
+because our training data is too large for GitHub to handle raw, so we use
+Git Large File Service to replace those files with pointers. However, this
+means that when you're working with these files on your local machine or the
+cluster, you will need to use git lfs to download them.
+
+#### Installing Git LFS on the Cluster
+
+```bash
+mkdir ~/bin
+wget https://github.com/git-lfs/git-lfs/releases/download/v3.1.4/git-lfs-linux-amd64-v3.1.4.tar.gz
+mkdir ~/git-lfs-v3.1.4
+tar -xzf git-lfs-linux-amd64-v3.1.4.tar.gz -C ~/git-lfs
+cp ~/git-lfs-v3.1.4/git-lfs ~/bin
+```
+
+1. Now to clone the repository run `git lfs clone <repo_url>` on the cluster to pull
+   down the running records repository. Then you can run
 
 2. Create a virtual environment in the root of the repository. This will need to
    be called `venv`. To do this, run `python -m venv venv` in the root of this
