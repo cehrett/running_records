@@ -1,3 +1,1199 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:bf3db68383d4b32c3133b1f664aea88f6927a717a4042a0440dda4be7237337a
-size 39791
+"""
+This code is adapted from the tutorial found [here](https://github.com/bentrevett/pytorch-seq2seq), on implementing the
+Transformer from "[Attention is All You Need](https://arxiv.org/abs/1706.03762)".
+"""
+
+import torch
+import torch.nn as nn
+
+from torchtext.legacy.data import Field, BucketIterator, TabularDataset
+
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+
+from string import punctuation
+
+import math
+import time
+import wandb
+
+from tokenizers import Tokenizer
+from tokenizers.models import BPE
+from tokenizers.trainers import BpeTrainer
+from tokenizers.pre_tokenizers import Whitespace
+import pandas as pd
+
+
+# TODO improve console logging
+
+
+def load_data(ASR_df_filepath='..\\repetition_data_generation\\data\\generated_data.csv',
+              train_filename='train_sentence.csv',
+              valid_filename='valid_sentence.csv',
+              test_filename='test_sentence.csv',
+              asr_text_filepath='asr.txt',
+              ttx_text_filepath='ttx.txt'):
+    """
+    Load the data and create train/val/test csvs, and also create .txt files of true text and ASR for BPE.
+    :param ASR_df_filepath: Location of data
+    :param train_filename: filename to which to write train data
+    :param valid_filename: filename to which to write valid data
+    :param test_filename: filename to which to write test data
+    :param asr_text_filepath: filename to which to write asr transcripts
+    :param ttx_text_filepath: filename to which to write true text transcripts
+    :return:
+    """
+    # Get data
+    df = pd.read_csv(ASR_df_filepath, names=['',
+                                             'audio_path',
+                                             'asr_transcript',
+                                             'original_text',
+                                             'mutated_text',
+                                             'index_tags',
+                                             'err_tags'], header=None, index_col='')
+
+    # For some reason, the tags have newlines in them. Remove them:
+    df.tags = df.err_tags.str.replace(r'\n', '')
+    # TODO see if this is still the case; probably not
+
+    # Lowercase all true text
+    df.loc[:, 'original_text'] = df.original_text.str.lower()
+
+    # Data is already shuffled, so no need to do that now.
+    # TODO verify this is still the case; probably not
+
+    df_len = df.shape[0]
+
+    # Make train/val/test split
+    # TODO make configurable
+    train_len = round(df_len * .6)
+    val_len = round(df_len * .2)
+
+    df_train = df[:train_len]
+    df_val = df[train_len:train_len + val_len]
+    df_test = df[train_len + val_len:]
+
+    df_train.to_csv(train_filename)
+    df_val.to_csv(valid_filename)
+    df_test.to_csv(test_filename)
+
+    # Save the sample TTX and ASR output by itself to a text file
+    # Once dataset is big enough, this should use only training data. Now it uses all
+    df_asr = df[['asr_transcript']]
+    df_ttx = df[['original_text']]
+    df_asr.to_csv(asr_text_filepath, sep='\t', header=False, index=False)
+    df_ttx.to_csv(ttx_text_filepath, sep='\t', header=False, index=False)
+
+
+def create_train_bpe_tokenizer(bpe_vocab_size,
+                               asr_text_filepath='asr.txt',
+                               ttx_text_filepath='ttx.txt',
+                               save_tokenizer=True,
+                               tokenizer_filename=".\\data\\tokenizer-test.json"):
+    """
+    TODO produce documentation.
+
+    :param bpe_vocab_size:
+    :param asr_text_filepath:
+    :param ttx_text_filepath:
+    :param save_tokenizer:
+    :param tokenizer_filename:
+    :return:
+    """
+    tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
+    trainer = BpeTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"],
+                         vocab_size=bpe_vocab_size)
+    tokenizer.pre_tokenizer = Whitespace()
+    files = [asr_text_filepath, ttx_text_filepath]
+    files = [file for file in files if file]  # Get rid of None's
+    tokenizer.train(files, trainer)
+
+    if save_tokenizer:
+        tokenizer.save(tokenizer_filename)
+
+    return tokenizer
+
+
+def tokenize_TTX(text, tokenizer=None):
+    """
+    Tokenizes English text from a string into a list of strings
+    """
+    if tokenizer:
+        return tokenizer.encode(text).tokens
+    else:
+        return [tok.strip(punctuation) for tok in text.split(" ") if tok not in ['.', ',', '!', '?', ';', ':', ]]
+
+
+def tokenize_TRG(tags):
+    """
+    Tokenizes string representation of array into list of strings
+    """
+    tags = tags[1:-1]
+    return tags.split(" ")
+
+
+def tokenize_ASR(asr, tokenizer):
+    """
+    Tokenizes ASR transcript from a string into a list of strings
+    """
+    return tokenizer.encode(asr).tokens
+
+
+def produce_iterators(train_filename,
+                      valid_filename,
+                      test_filename,
+                      asr_tokenizer,
+                      ttx_tokenizer=None
+                      ):
+    """
+    Produce datasets for each of training, validation and test data. Also build vocabs for true text, tags, and ASR.
+    :param train_filename: location of train data csv
+    :param valid_filename: location of valid data csv
+    :param test_filename: location of test data csv
+    :return:
+    """
+    TTX = Field(tokenize=lambda x: tokenize_TTX(x, ttx_tokenizer),
+                init_token='<sos>',
+                eos_token='<eos>',
+                lower=False,
+                batch_first=True)
+
+    TRG = Field(tokenize=tokenize_TRG,
+                init_token='<sos>',
+                eos_token='<eos>',
+                lower=False,
+                batch_first=True)
+
+    ASR = Field(tokenize=lambda x: tokenize_ASR(x, asr_tokenizer),
+                init_token='<sos>',
+                eos_token='<eos>',
+                lower=False,
+                batch_first=True)
+
+    fields = {'original_text': ('true_text', TTX), 'err_tags': ('tags', TRG), 'asr_transcript': ('asr', ASR)}
+
+    train_data, valid_data, test_data = TabularDataset.splits(
+        path='.\\',
+        train=train_filename,
+        validation=valid_filename,
+        test=test_filename,
+        format='csv',
+        fields=fields
+    )
+
+    # Put min_freq at 2 or higher for real data
+    TTX.build_vocab(train_data, min_freq=2)
+    TRG.build_vocab(train_data, min_freq=2)
+    ASR.build_vocab(train_data, min_freq=2)
+
+    return train_data, valid_data, test_data, TTX, TRG, ASR
+
+
+def model_pipeline(hyperparameters,
+                   device,
+                   train_data,
+                   valid_data,
+                   test_data,
+                   TTX,
+                   TRG,
+                   ASR
+                   ):
+    # tell wandb to get started
+    with wandb.init(project="running_records", config=hyperparameters):
+        # access all HPs through wandb.config, so logging matches execution!
+        config = wandb.config
+
+        # make the model, data, and optimization problem
+        model, train_iterator, valid_iterator, test_iterator, criterion, optimizer = make(config,
+                                                                                          device,
+                                                                                          train_data,
+                                                                                          valid_data,
+                                                                                          test_data,
+                                                                                          TTX,
+                                                                                          TRG,
+                                                                                          ASR
+                                                                                          )
+        #       print(model)
+
+        # and use them to train the model
+        train(model, train_iterator, valid_iterator, criterion, optimizer, config)
+
+        # and test its final performance
+        test(model, test_iterator, criterion)
+
+    return model
+
+
+def make(config,
+         device,
+         train_data,
+         valid_data,
+         test_data,
+         TTX,
+         TRG,
+         ASR):
+    # Make the data
+    train_iterator, valid_iterator, test_iterator = BucketIterator.splits(
+        (train_data, valid_data, test_data),
+        sort_key=lambda x: len(x.true_text),
+        batch_size=config.batch_size,
+        device=device)
+
+    # Make the model
+    model = make_model(config, device, TTX, TRG, ASR)
+    print(f'The model has {count_parameters(model):,} trainable parameters')
+    model.apply(initialize_weights)
+
+    # Make the loss and optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    if config['decode_trg']:
+        ignore_index = TRG.vocab.stoi[TRG.pad_token]
+    else:
+        ignore_index = TTX.vocab.stoi[TTX.pad_token]
+    criterion = nn.CrossEntropyLoss(ignore_index=ignore_index)
+
+    return model, train_iterator, valid_iterator, test_iterator, criterion, optimizer
+
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def initialize_weights(m):
+    if hasattr(m, 'weight') and m.weight.dim() > 1:
+        nn.init.xavier_uniform_(m.weight.data)
+
+
+def make_model(config, device, TTX, TRG, ASR):
+    TTX_INPUT_DIM = len(TTX.vocab)
+    ASR_INPUT_DIM = len(ASR.vocab)
+    OUTPUT_DIM = len(TRG.vocab)
+    HID_DIM = config.hid_dim
+    ENC_LAYERS = config.enc_layers
+    DEC_LAYERS = config.dec_layers
+    ENC_HEADS = config.enc_heads
+    DEC_HEADS = config.dec_heads
+    ENC_PF_DIM = config.enc_pf_dim
+    DEC_PF_DIM = config.dec_pf_dim
+    ENC_DROPOUT = config.enc_dropout
+    DEC_DROPOUT = config.dec_dropout
+
+    ttx_enc = Encoder(TTX_INPUT_DIM,
+                      HID_DIM,
+                      ENC_LAYERS,
+                      ENC_HEADS,
+                      ENC_PF_DIM,
+                      ENC_DROPOUT,
+                      device)
+
+    asr_enc = Encoder(ASR_INPUT_DIM,
+                      HID_DIM,
+                      ENC_LAYERS,
+                      ENC_HEADS,
+                      ENC_PF_DIM,
+                      ENC_DROPOUT,
+                      device)
+
+    if config['decode_trg'] == True:
+        Decoder = Decoder_trg
+        Seq2Seq = Seq2Seq_trg
+    else:
+        Decoder = Decoder_ttx
+        Seq2Seq = Seq2Seq_ttx
+    dec = Decoder(TTX_INPUT_DIM,
+                  OUTPUT_DIM,
+                  HID_DIM,
+                  DEC_LAYERS,
+                  DEC_HEADS,
+                  DEC_PF_DIM,
+                  DEC_DROPOUT,
+                  device)
+
+    TTX_PAD_IDX = TTX.vocab.stoi[TTX.pad_token]
+    ASR_PAD_IDX = ASR.vocab.stoi[ASR.pad_token]
+    TRG_PAD_IDX = TRG.vocab.stoi[TRG.pad_token]
+
+    model = Seq2Seq(ttx_enc, asr_enc, dec, TTX_PAD_IDX, ASR_PAD_IDX, TRG_PAD_IDX, device).to(device)
+    return model
+
+
+def train(model, train_iterator, valid_iterator, criterion, optimizer, config):
+    wandb.watch(model, criterion, log="all", log_freq=10)
+    N_EPOCHS = config.epochs
+    CLIP = config.clip
+
+    best_valid_loss = float('inf')
+    best_epoch = 0
+    example_ct = 0  # number of examples seen
+    batch_ct = 0
+
+    for epoch in range(N_EPOCHS):
+
+        start_time = time.time()
+        model.train()
+        epoch_loss = 0
+
+        for i, batch in enumerate(train_iterator):
+            try:
+                batch_loss = train_batch(model, batch, optimizer, criterion, CLIP)
+            except RuntimeError:
+                print('\nRuntimeError! Skipping this batch, using previous loss as est\n')
+            example_ct += len(batch)
+            batch_ct += 1
+
+            # Report metrics every 25th batch
+            if (batch_ct % 25) == 0:
+                train_log(batch_loss, example_ct, epoch)
+
+            epoch_loss += batch_loss
+
+        epoch_loss = epoch_loss / len(train_iterator)
+        valid_loss = evaluate(model, valid_iterator, criterion)
+
+        end_time = time.time()
+
+        epoch_mins, epoch_secs = epoch_time(start_time, end_time)
+
+        if valid_loss < best_valid_loss:
+            best_valid_loss = valid_loss
+            best_epoch = epoch
+            torch.save(model.state_dict(), 'rep_model_sample.pt')
+
+        print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
+        print(f'\tTrain Loss: {epoch_loss:.3f} | Train PPL: {math.exp(epoch_loss):7.3f}')
+        print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
+
+        if epoch - best_epoch >= config.early_stop:
+            print(f'No improvement in {config.early_stop} epochs. Stopping training.\n')
+            break
+
+    return model
+
+
+def train_batch(model, batch, optimizer, criterion, clip):
+    ttx_src = batch.true_text
+    asr_src = batch.asr
+    trg = batch.tags
+
+    optimizer.zero_grad()
+
+    # TODO is cutting off part of trg correct when not decoding trg?
+    output, _, _ = model(ttx_src, asr_src, trg[:, :-1])
+
+    # output = [batch size, ttx len - 1, output dim]
+    # ttx_src = [batch size, ttx len]
+
+    output_dim = output.shape[-1]
+
+    output = output.contiguous().view(-1, output_dim)
+    trg = trg[:, 1:].contiguous().view(-1)
+
+    # output = [batch size * trg len - 1, output dim]
+    # trg = [batch size * trg len - 1]
+
+    loss = criterion(output, trg)
+
+    loss.backward()
+
+    torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+
+    optimizer.step()
+
+    return loss.item()
+
+
+def train_log(loss, example_ct, epoch):
+    loss = float(loss)
+
+    # where the magic happens
+    wandb.log({"epoch": epoch, "loss": loss}, step=example_ct)
+    print(f"Loss after " + str(example_ct).zfill(5) + f" examples: {loss:.3f}")
+
+
+def evaluate(model, iterator, criterion):
+    model.eval()
+
+    epoch_loss = 0
+
+    with torch.no_grad():
+        for i, batch in enumerate(iterator):
+            ttx_src = batch.true_text
+            asr_src = batch.asr
+            trg = batch.tags
+
+            # TODO is cutting off part of trg correct when not decoding trg?
+            output, _, _ = model(ttx_src, asr_src, trg[:,:-1])
+
+            # output = [batch size, trg len - 1, output dim]
+            # ttx_src = [batch size, ttx len]
+
+            output_dim = output.shape[-1]
+
+            #             print('output shape:',output.shape)
+            #             print('trg shape:',trg.shape)
+
+            output = output.contiguous().view(-1, output_dim)
+            trg = trg[:, 1:].contiguous().view(-1)
+
+            # output = [batch size * trg len - 1, output dim]
+            # trg = [batch size * trg len - 1]
+
+            #             print('output shape:',output.shape)
+            #             print('trg shape:',trg.shape)
+            loss = criterion(output, trg)
+
+            epoch_loss += loss.item()
+
+    return epoch_loss / len(iterator)
+
+
+def epoch_time(start_time, end_time):
+    elapsed_time = end_time - start_time
+    elapsed_mins = int(elapsed_time / 60)
+    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
+    return elapsed_mins, elapsed_secs
+
+
+def test(model, test_iterator, criterion, model_filepath='rep_model_sample.pt'):
+    model.load_state_dict(torch.load(model_filepath))
+
+    test_loss = evaluate(model, test_iterator, criterion)
+    wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss)})
+
+    print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
+
+
+class Encoder(nn.Module):
+    def __init__(self,
+                 input_dim,
+                 hid_dim,
+                 n_layers,
+                 n_heads,
+                 pf_dim,
+                 dropout,
+                 device,
+                 max_length=600):
+        # TODO make max length an input
+        super().__init__()
+
+        self.device = device
+
+        self.tok_embedding = nn.Embedding(input_dim, hid_dim)
+        self.pos_embedding = nn.Embedding(max_length, hid_dim)
+
+        self.layers = nn.ModuleList([EncoderLayer(hid_dim,
+                                                  n_heads,
+                                                  pf_dim,
+                                                  dropout,
+                                                  device)
+                                     for _ in range(n_layers)])
+
+        self.dropout = nn.Dropout(dropout)
+
+        self.scale = torch.sqrt(torch.FloatTensor([hid_dim])).to(device)
+
+    def forward(self, src, src_mask):
+        # src = [batch size, src len]
+        # src_mask = [batch size, 1, 1, src len]
+
+        batch_size = src.shape[0]
+        src_len = src.shape[1]
+
+        pos = torch.arange(0, src_len).unsqueeze(0).repeat(batch_size, 1).to(self.device)
+
+        # pos = [batch size, src len]
+
+        src = self.dropout((self.tok_embedding(src) * self.scale) + self.pos_embedding(pos))
+
+        # src = [batch size, src len, hid dim]
+
+        for layer in self.layers:
+            src = layer(src, src_mask)
+
+        # src = [batch size, src len, hid dim]
+
+        return src
+
+
+class EncoderLayer(nn.Module):
+    def __init__(self,
+                 hid_dim,
+                 n_heads,
+                 pf_dim,
+                 dropout,
+                 device):
+        super().__init__()
+
+        self.self_attn_layer_norm = nn.LayerNorm(hid_dim)
+        self.ff_layer_norm = nn.LayerNorm(hid_dim)
+        self.self_attention = MultiHeadAttentionLayer(hid_dim, n_heads, dropout, device)
+        self.positionwise_feedforward = PositionwiseFeedforwardLayer(hid_dim,
+                                                                     pf_dim,
+                                                                     dropout)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, src, src_mask):
+        # src = [batch size, src len, hid dim]
+        # src_mask = [batch size, 1, 1, src len]
+
+        # self attention
+        _src, _ = self.self_attention(src, src, src, src_mask)
+
+        # dropout, residual connection and layer norm
+        src = self.self_attn_layer_norm(src + self.dropout(_src))
+
+        # src = [batch size, src len, hid dim]
+
+        # positionwise feedforward
+        _src = self.positionwise_feedforward(src)
+
+        # dropout, residual and layer norm
+        src = self.ff_layer_norm(src + self.dropout(_src))
+
+        # src = [batch size, src len, hid dim]
+
+        return src
+
+
+class MultiHeadAttentionLayer(nn.Module):
+    def __init__(self, hid_dim, n_heads, dropout, device):
+        super().__init__()
+
+        assert hid_dim % n_heads == 0
+
+        self.hid_dim = hid_dim
+        self.n_heads = n_heads
+        self.head_dim = hid_dim // n_heads
+
+        self.fc_q = nn.Linear(hid_dim, hid_dim)
+        self.fc_k = nn.Linear(hid_dim, hid_dim)
+        self.fc_v = nn.Linear(hid_dim, hid_dim)
+
+        self.fc_o = nn.Linear(hid_dim, hid_dim)
+
+        self.dropout = nn.Dropout(dropout)
+
+        self.scale = torch.sqrt(torch.FloatTensor([self.head_dim])).to(device)
+
+    def forward(self, query, key, value, mask=None):
+        batch_size = query.shape[0]
+
+        # query = [batch size, query len, hid dim]
+        # key = [batch size, key len, hid dim]
+        # value = [batch size, value len, hid dim]
+
+        Q = self.fc_q(query)
+        K = self.fc_k(key)
+        V = self.fc_v(value)
+
+        # Q = [batch size, query len, hid dim]
+        # K = [batch size, key len, hid dim]
+        # V = [batch size, value len, hid dim]
+
+        Q = Q.view(batch_size, -1, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
+        K = K.view(batch_size, -1, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
+        V = V.view(batch_size, -1, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
+
+        # Q = [batch size, n heads, query len, head dim]
+        # K = [batch size, n heads, key len, head dim]
+        # V = [batch size, n heads, value len, head dim]
+
+        energy = torch.matmul(Q, K.permute(0, 1, 3, 2)) / self.scale
+
+        # energy = [batch size, n heads, query len, key len]
+
+        if mask is not None:
+            energy = energy.masked_fill(mask == 0, -1e10)
+
+        attention = torch.softmax(energy, dim=-1)
+
+        # attention = [batch size, n heads, query len, key len]
+
+        x = torch.matmul(self.dropout(attention), V)
+
+        # x = [batch size, n heads, query len, head dim]
+
+        x = x.permute(0, 2, 1, 3).contiguous()
+
+        # x = [batch size, query len, n heads, head dim]
+
+        x = x.view(batch_size, -1, self.hid_dim)
+
+        # x = [batch size, query len, hid dim]
+
+        x = self.fc_o(x)
+
+        # x = [batch size, query len, hid dim]
+
+        return x, attention
+
+
+class PositionwiseFeedforwardLayer(nn.Module):
+    def __init__(self, hid_dim, pf_dim, dropout):
+        super().__init__()
+
+        self.fc_1 = nn.Linear(hid_dim, pf_dim)
+        self.fc_2 = nn.Linear(pf_dim, hid_dim)
+
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        # x = [batch size, seq len, hid dim]
+
+        x = self.dropout(torch.relu(self.fc_1(x)))
+
+        # x = [batch size, seq len, pf dim]
+
+        x = self.fc_2(x)
+
+        # x = [batch size, seq len, hid dim]
+
+        return x
+
+
+class DimRedFeedforwardLayer(nn.Module):
+    def __init__(self, hid_dim, pf_dim, dropout):
+        super().__init__()
+
+        self.fc_1 = nn.Linear(hid_dim * 2, pf_dim)
+        self.fc_2 = nn.Linear(pf_dim, hid_dim)
+
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        # x = [batch size, seq len, 2 * hid dim]
+
+        x = self.dropout(torch.relu(self.fc_1(x)))
+
+        # x = [batch size, seq len, pf dim]
+
+        x = self.fc_2(x)
+
+        # x = [batch size, seq len, hid dim]
+
+        return x
+
+
+class Decoder_ttx(nn.Module):
+    def __init__(self,
+                 ttx_vocab_dim,
+                 output_dim,
+                 hid_dim,
+                 n_layers,
+                 n_heads,
+                 pf_dim,
+                 dropout,
+                 device,
+                 max_length=600):
+        super().__init__()
+
+        self.device = device
+
+        self.ttx_embedding = nn.Embedding(ttx_vocab_dim, hid_dim)
+        self.pos_embedding = nn.Embedding(max_length, hid_dim)
+
+        self.layers = nn.ModuleList([DecoderLayer_ttx(hid_dim,
+                                                      n_heads,
+                                                      pf_dim,
+                                                      dropout,
+                                                      device)
+                                     for _ in range(n_layers)])
+
+        self.fc_out = nn.Linear(hid_dim, output_dim)
+
+        self.dropout = nn.Dropout(dropout)
+
+        self.scale = torch.sqrt(torch.FloatTensor([hid_dim])).to(device)
+
+    def forward(self, ttx_src, ttx_enc_src, asr_enc_src, ttx_mask, ttx_src_mask, asr_src_mask):
+        # trg = [batch size, trg len]
+        # ttx_src = [batch size, ttx src len]
+        # enc_src = [batch size, src len, hid dim]
+        # ttx_mask = [batch size, 1, ttx len, ttx len]
+        # src_mask = [batch size, 1, 1, src len]
+
+        batch_size = ttx_src.shape[0]
+        ttx_len = ttx_src.shape[1]
+
+        pos = torch.arange(0, ttx_len).unsqueeze(0).repeat(batch_size, 1).to(self.device)
+
+        # pos = [batch size, ttx len]
+
+        ttx_src = self.dropout((self.ttx_embedding(ttx_src) * self.scale) + self.pos_embedding(pos))
+
+        # trg = [batch size, trg len, hid dim]
+
+        for layer in self.layers:
+            ttx_src, ttx_attention, asr_attention = layer(ttx_src,
+                                                          ttx_enc_src,
+                                                          asr_enc_src,
+                                                          ttx_mask,
+                                                          ttx_src_mask,
+                                                          asr_src_mask)
+
+        # ttx_src = [batch size, ttx len, hid dim]
+        # attention = [batch size, n heads, ttx len, src len]
+
+        output = self.fc_out(ttx_src)
+
+        # output = [batch size, ttx len, output dim]
+
+        return output, ttx_attention, asr_attention
+
+
+class Decoder_trg(nn.Module):
+    def __init__(self,
+                 ttx_vocab_dim,
+                 output_dim,
+                 hid_dim,
+                 n_layers,
+                 n_heads,
+                 pf_dim,
+                 dropout,
+                 device,
+                 max_length=350):
+        super().__init__()
+
+        self.device = device
+
+        self.tok_embedding = nn.Embedding(output_dim, hid_dim)
+        self.pos_embedding = nn.Embedding(max_length, hid_dim)
+
+        self.layers = nn.ModuleList([DecoderLayer_trg(hid_dim,
+                                                      n_heads,
+                                                      pf_dim,
+                                                      dropout,
+                                                      device)
+                                     for _ in range(n_layers)])
+
+        self.fc_out = nn.Linear(hid_dim, output_dim)
+
+        self.dropout = nn.Dropout(dropout)
+
+        self.scale = torch.sqrt(torch.FloatTensor([hid_dim])).to(device)
+
+    def forward(self, trg, ttx_enc_src, asr_enc_src, trg_mask, ttx_src_mask, asr_src_mask):
+        # trg = [batch size, trg len]
+        # enc_src = [batch size, src len, hid dim]
+        # trg_mask = [batch size, 1, trg len, trg len]
+        # src_mask = [batch size, 1, 1, src len]
+
+        batch_size = trg.shape[0]
+        trg_len = trg.shape[1]
+
+        pos = torch.arange(0, trg_len).unsqueeze(0).repeat(batch_size, 1).to(self.device)
+
+        # pos = [batch size, trg len]
+
+        trg = self.dropout((self.tok_embedding(trg) * self.scale) + self.pos_embedding(pos))
+
+        # trg = [batch size, trg len, hid dim]
+
+        for layer in self.layers:
+            trg, ttx_attention, asr_attention = layer(trg, ttx_enc_src, asr_enc_src, trg_mask, ttx_src_mask,
+                                                      asr_src_mask)
+
+        # trg = [batch size, trg len, hid dim]
+        # attention = [batch size, n heads, trg len, src len]
+
+        output = self.fc_out(trg)
+
+        # output = [batch size, trg len, output dim]
+
+        return output, ttx_attention, asr_attention
+
+
+class DecoderLayer_trg(nn.Module):
+    def __init__(self,
+                 hid_dim,
+                 n_heads,
+                 pf_dim,
+                 dropout,
+                 device):
+        super().__init__()
+
+        self.self_attn_layer_norm = nn.LayerNorm(hid_dim)
+        self.enc_attn_layer_norm = nn.LayerNorm(hid_dim)
+        self.ff_layer_norm = nn.LayerNorm(hid_dim)
+        self.self_attention = MultiHeadAttentionLayer(hid_dim, n_heads, dropout, device)
+        self.encoder_attention = MultiHeadAttentionLayer(hid_dim, n_heads, dropout, device)
+        self.dimred_feedforward = DimRedFeedforwardLayer(hid_dim, pf_dim, dropout)
+        self.positionwise_feedforward = PositionwiseFeedforwardLayer(hid_dim,
+                                                                     pf_dim,
+                                                                     dropout)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, trg, ttx_enc_src, asr_enc_src, trg_mask, ttx_src_mask, asr_src_mask):
+        # trg = [batch size, trg len, hid dim]
+        # enc_src = [batch size, src len, hid dim]
+        # trg_mask = [batch size, 1, trg len, trg len]
+        # src_mask = [batch size, 1, 1, src len]
+
+        # self attention
+        _trg, _ = self.self_attention(trg, trg, trg, trg_mask)
+
+        # dropout, residual connection and layer norm
+        trg = self.self_attn_layer_norm(trg + self.dropout(_trg))
+
+        # trg = [batch size, trg len, hid dim]
+
+        # ttx_encoder attention
+        trg_ttx, ttx_attention = self.encoder_attention(trg, ttx_enc_src, ttx_enc_src, ttx_src_mask)
+
+        # dropout, residual connection and layer norm
+        trg_ttx = self.enc_attn_layer_norm(trg + self.dropout(trg_ttx))
+
+        # trg_ttx = [batch size, trg len, hid dim]
+
+        # asr_encoder attention
+        trg_asr, asr_attention = self.encoder_attention(trg, asr_enc_src, asr_enc_src, asr_src_mask)
+
+        # dropout, residual connection and layer norm
+        trg_asr = self.enc_attn_layer_norm(trg + self.dropout(trg_asr))
+
+        # trg_asr = [batch size, trg len, hid dim]
+
+        trg = torch.cat((trg_ttx, trg_asr), 2)
+
+        # trg = [batch size, trg len, 2 * hid dim]
+
+        trg = self.dimred_feedforward(trg)
+
+        # trg = [batch size, trg len, hid dim]
+
+        # positionwise feedforward
+        _trg = self.positionwise_feedforward(trg)
+
+        # dropout, residual and layer norm
+        trg = self.ff_layer_norm(trg + self.dropout(_trg))
+
+        # trg = [batch size, trg len, hid dim]
+        # attention = [batch size, n heads, trg len, src len]
+
+        return trg, ttx_attention, asr_attention
+
+
+class DecoderLayer_ttx(nn.Module):
+    def __init__(self,
+                 hid_dim,
+                 n_heads,
+                 pf_dim,
+                 dropout,
+                 device):
+        super().__init__()
+
+        self.self_attn_layer_norm = nn.LayerNorm(hid_dim)
+        self.enc_attn_layer_norm = nn.LayerNorm(hid_dim)
+        self.ff_layer_norm = nn.LayerNorm(hid_dim)
+        self.self_attention = MultiHeadAttentionLayer(hid_dim, n_heads, dropout, device)
+        self.encoder_attention = MultiHeadAttentionLayer(hid_dim, n_heads, dropout, device)
+        self.dimred_feedforward = DimRedFeedforwardLayer(hid_dim, pf_dim, dropout)
+        self.positionwise_feedforward = PositionwiseFeedforwardLayer(hid_dim,
+                                                                     pf_dim,
+                                                                     dropout)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, ttx_src, ttx_enc_src, asr_enc_src, ttx_mask, ttx_src_mask, asr_src_mask):
+        # ttx_src = [batch size, ttx len, hid dim]
+        # enc_src = [batch size, src len, hid dim]
+        # ttx_mask = [batch size, 1, ttx len, ttx len]
+        # src_mask = [batch size, 1, 1, src len]
+
+        # self attention
+        _ttx_src, _ = self.self_attention(ttx_src, ttx_src, ttx_src, ttx_mask)
+
+        # dropout, residual connection and layer norm
+        ttx_src = self.self_attn_layer_norm(ttx_src + self.dropout(_ttx_src))
+
+        # ttx_src = [batch size, ttx len, hid dim]
+
+        # ttx_encoder attention
+        ttx_ttx, ttx_attention = self.encoder_attention(ttx_src, ttx_enc_src, ttx_enc_src, ttx_src_mask)
+
+        # dropout, residual connection and layer norm
+        ttx_ttx = self.enc_attn_layer_norm(ttx_src + self.dropout(ttx_ttx))
+
+        # ttx_ttx = [batch size, ttx len, hid dim]
+
+        # asr_encoder attention
+        ttx_asr, asr_attention = self.encoder_attention(ttx_src, asr_enc_src, asr_enc_src, asr_src_mask)
+
+        # dropout, residual connection and layer norm
+        ttx_asr = self.enc_attn_layer_norm(ttx_src + self.dropout(ttx_asr))
+
+        # ttx_asr = [batch size, ttx len, hid dim]
+
+        ttx_src = torch.cat((ttx_ttx, ttx_asr), 2)
+
+        # ttx_src = [batch size, ttx len, 2 * hid dim]
+
+        ttx_src = self.dimred_feedforward(ttx_src)
+
+        # ttx_src = [batch size, ttx len, hid dim]
+
+        # positionwise feedforward
+        _ttx_src = self.positionwise_feedforward(ttx_src)
+
+        # dropout, residual and layer norm
+        ttx_src = self.ff_layer_norm(ttx_src + self.dropout(_ttx_src))
+
+        # ttx_src = [batch size, ttx len, hid dim]
+        # attention = [batch size, n heads, ttx len, src len]
+
+        return ttx_src, ttx_attention, asr_attention
+
+
+class Seq2Seq_ttx(nn.Module):
+    def __init__(self,
+                 ttx_encoder,
+                 asr_encoder,
+                 decoder,
+                 ttx_src_pad_idx,
+                 asr_src_pad_idx,
+                 trg_pad_idx,
+                 device):
+        super().__init__()
+
+        self.ttx_encoder = ttx_encoder
+        self.asr_encoder = asr_encoder
+        self.decoder = decoder
+        self.ttx_src_pad_idx = ttx_src_pad_idx
+        self.asr_src_pad_idx = asr_src_pad_idx
+        #         self.trg_pad_idx = trg_pad_idx
+        self.device = device
+
+    def make_ttx_src_mask(self, src):
+        # src = [batch size, src len]
+
+        src_mask = (src != self.ttx_src_pad_idx).unsqueeze(1).unsqueeze(2)
+
+        # src_mask = [batch size, 1, 1, src len]
+
+        return src_mask
+
+    def make_asr_src_mask(self, src):
+        # src = [batch size, src len]
+
+        src_mask = (src != self.asr_src_pad_idx).unsqueeze(1).unsqueeze(2)
+
+        # src_mask = [batch size, 1, 1, src len]
+
+        return src_mask
+
+    def make_ttx_mask(self, ttx_src):
+        # The mask for BPE ttx here should increment exposure of individual words.
+
+        # ttx_src = [batch size, ttx len]
+
+        ttx_pad_mask = (ttx_src != self.ttx_src_pad_idx).unsqueeze(1).unsqueeze(2)
+
+        # ttx_src_pad_mask = [batch size, 1, 1, ttx len]
+
+        ttx_len = ttx_src.shape[1]
+
+        # ttx_sub_mask = torch.tril(torch.ones((ttx_len, ttx_len), device = self.device)).bool()
+        ttx_sub_mask = torch.tril(torch.ones((ttx_len + 1, ttx_len), device=self.device)).bool()
+        ttx_sub_mask = ttx_sub_mask[1:, :]
+
+        # ttx_sub_mask = [ttx len, ttx len]
+
+        ttx_mask = ttx_pad_mask & ttx_sub_mask
+
+        # ttx_mask = [batch size, 1, ttx len, ttx len]
+
+        return ttx_mask
+
+    def forward(self, ttx_src, asr_src, trg):
+        # src = [batch size, src len]
+
+        ttx_src_mask = self.make_ttx_src_mask(ttx_src)
+        asr_src_mask = self.make_asr_src_mask(asr_src)
+        ttx_mask = self.make_ttx_mask(ttx_src[:, :-1])
+
+        # src_mask = [batch size, 1, 1, src len]
+        # ttx_mask = [batch size, 1, ttx len, ttx len]
+
+        ttx_enc_src = self.ttx_encoder(ttx_src, ttx_src_mask)
+        asr_enc_src = self.asr_encoder(asr_src, asr_src_mask)
+
+        # enc_src = [batch size, src len, hid dim]
+
+        output, ttx_attention, asr_attention = self.decoder(
+            ttx_src[:, :-1],
+            ttx_enc_src,
+            asr_enc_src,
+            ttx_mask,
+            ttx_src_mask,
+            asr_src_mask)
+
+        # output = [batch size, ttx len, output dim]
+        # attention = [batch size, n heads, ttx len, src len]
+
+        return output, ttx_attention, asr_attention
+
+
+class Seq2Seq_trg(nn.Module):
+    def __init__(self,
+                 ttx_encoder,
+                 asr_encoder,
+                 decoder,
+                 ttx_src_pad_idx,
+                 asr_src_pad_idx,
+                 trg_pad_idx,
+                 device):
+        super().__init__()
+
+        self.ttx_encoder = ttx_encoder
+        self.asr_encoder = asr_encoder
+        self.decoder = decoder
+        self.ttx_src_pad_idx = ttx_src_pad_idx
+        self.asr_src_pad_idx = asr_src_pad_idx
+        self.trg_pad_idx = trg_pad_idx
+        self.device = device
+
+    def make_ttx_src_mask(self, src):
+        # src = [batch size, src len]
+
+        src_mask = (src != self.ttx_src_pad_idx).unsqueeze(1).unsqueeze(2)
+
+        # src_mask = [batch size, 1, 1, src len]
+
+        return src_mask
+
+    def make_asr_src_mask(self, src):
+        # src = [batch size, src len]
+
+        src_mask = (src != self.asr_src_pad_idx).unsqueeze(1).unsqueeze(2)
+
+        # src_mask = [batch size, 1, 1, src len]
+
+        return src_mask
+
+    def make_trg_mask(self, trg):
+        # trg = [batch size, trg len]
+
+        trg_pad_mask = (trg != self.trg_pad_idx).unsqueeze(1).unsqueeze(2)
+
+        # trg_pad_mask = [batch size, 1, 1, trg len]
+
+        trg_len = trg.shape[1]
+
+        trg_sub_mask = torch.tril(torch.ones((trg_len, trg_len), device=self.device)).bool()
+
+        # trg_sub_mask = [trg len, trg len]
+
+        trg_mask = trg_pad_mask & trg_sub_mask
+
+        # trg_mask = [batch size, 1, trg len, trg len]
+
+        return trg_mask
+
+    def forward(self, ttx_src, asr_src, trg):
+        # src = [batch size, src len]
+        # trg = [batch size, trg len]
+
+        ttx_src_mask = self.make_ttx_src_mask(ttx_src)
+        asr_src_mask = self.make_asr_src_mask(asr_src)
+        trg_mask = self.make_trg_mask(trg)
+
+        # src_mask = [batch size, 1, 1, src len]
+        # trg_mask = [batch size, 1, trg len, trg len]
+
+        ttx_enc_src = self.ttx_encoder(ttx_src, ttx_src_mask)
+        asr_enc_src = self.asr_encoder(asr_src, asr_src_mask)
+
+        # enc_src = [batch size, src len, hid dim]
+
+        output, ttx_attention, asr_attention = self.decoder(trg,
+                                                            ttx_enc_src,
+                                                            asr_enc_src,
+                                                            trg_mask,
+                                                            ttx_src_mask,
+                                                            asr_src_mask)
+
+        # output = [batch size, trg len, output dim]
+        # attention = [batch size, n heads, trg len, src len]
+
+        return output, ttx_attention, asr_attention
+
+
+def translate_sentence(ttx_sentence, asr_sentence, ttx_src_field, asr_src_field, trg_field, model, device, max_len=50):
+    model.eval()
+
+    # Prepare true text
+
+    if isinstance(ttx_sentence, str):
+        ttx_tokens = tokenize_TTX(ttx_sentence)
+    else:
+        ttx_tokens = [token.lower() for token in ttx_sentence]
+
+    ttx_tokens = [ttx_src_field.init_token] + ttx_tokens + [ttx_src_field.eos_token]
+
+    ttx_src_indexes = [ttx_src_field.vocab.stoi[token] for token in ttx_tokens]
+
+    ttx_src_tensor = torch.LongTensor(ttx_src_indexes).unsqueeze(0).to(device)
+
+    ttx_src_mask = model.make_ttx_src_mask(ttx_src_tensor)
+
+    # Prepare ASR transcript
+
+    if isinstance(asr_sentence, str):
+        asr_tokens = tokenize_ASR(asr_sentence)
+    else:
+        asr_tokens = [token for token in asr_sentence]
+
+    asr_tokens = [asr_src_field.init_token] + asr_tokens + [asr_src_field.eos_token]
+
+    asr_src_indexes = [asr_src_field.vocab.stoi[token] for token in asr_tokens]
+
+    asr_src_tensor = torch.LongTensor(asr_src_indexes).unsqueeze(0).to(device)
+
+    asr_src_mask = model.make_asr_src_mask(asr_src_tensor)
+
+    with torch.no_grad():
+        ttx_enc_src = model.ttx_encoder(ttx_src_tensor, ttx_src_mask)
+        asr_enc_src = model.asr_encoder(asr_src_tensor, asr_src_mask)
+
+    # trg_indexes = [trg_field.vocab.stoi[trg_field.init_token]]
+
+    #     def forward(self, ttx_src, ttx_enc_src, asr_enc_src, ttx_mask, ttx_src_mask, asr_src_mask):
+
+    ttx_mask = model.make_ttx_mask(ttx_src_tensor)
+
+    with torch.no_grad():
+        output, ttx_attention, asr_attention = model.decoder(ttx_src_tensor,
+                                                             ttx_enc_src,
+                                                             asr_enc_src,
+                                                             ttx_mask,
+                                                             ttx_src_mask,
+                                                             asr_src_mask)
+
+    trg_indexes = output.argmax(2)[0].tolist()
+
+    trg_tokens = [trg_field.vocab.itos[i] for i in trg_indexes]
+
+    return trg_tokens, ttx_attention, asr_attention
+
+
+def display_attention(sentence, translation, attention, n_heads=8, n_rows=4, n_cols=2):
+    assert n_rows * n_cols == n_heads
+
+    fig = plt.figure(figsize=(15, 25))
+
+    for i in range(n_heads):
+        ax = fig.add_subplot(n_rows, n_cols, i + 1)
+
+        _attention = attention.squeeze(0)[i].cpu().detach().numpy()
+
+        cax = ax.matshow(_attention, cmap='bone')
+
+        ax.tick_params(labelsize=12)
+        ax.set_xticklabels([''] + ['<sos>'] + [t.lower() for t in sentence] + ['<eos>'],
+                           rotation=45)
+        ax.set_yticklabels([''] + translation)
+
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+
+    plt.show()
+    plt.close()

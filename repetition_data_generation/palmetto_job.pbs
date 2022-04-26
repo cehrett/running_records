@@ -1,3 +1,9 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:4fd8bb01033b69f02b6a30d153a347b9b1753a99bb6632fdc0d769f3564daad8
-size 358
+#PBS -N generate_25000_rows
+#PBS -l select=1:ncpus=20:mem=62gb:ngpus=1:gpu_model=v100,walltime=20:00:00
+#PBS -m abe
+#PBS -M jmdanie@clemson.edu,cehrett@clemson.edu
+#PBS -o job_stdout.txt
+#PBS -e job_stdout.txt
+cd ~/running_records/repetition_data_generation
+source generate_training_data.sh 25000
+rm ~/running_records/repetition_data_generation/data/*.wav -f
