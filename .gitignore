@@ -1,3 +1,23 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:f789911a8f5434a8e8c39b00daabf851bad136ed91f805d07ae58d5e5352197f
-size 719
+repetition_data_generation/data/*.wav
+lightning_logs/**
+*.pyc
+repetition_data_generation/europarl-v7.ro-en.ro
+repetition_data_generation/cmudict-0.7b
+.ipynb_checkpoints/nemo_asr-checkpoint.ipynb
+cmudict-0.7b
+transformer_models/asr.txt
+transformer_models/ttx.txt
+transformer_models/train_sentence.csv
+transformer_models/valid_sentence.csv
+transformer_models/test_sentence.csv
+transformer_models/tokenizer-test.json
+transformer_models/wandb/*
+transformer_models/.ipynb_checkpoints/*
+transformer_models/rep_model_sample.pt
+NeMo/
+model_development/
+repetition_data_generation/.ipynb_checkpoints/Generate_large_dataset-checkpoint.ipynb
+/transformer_models/TRK_for_BPE_with_trg_decoding.py
+.ipynb_checkpoints
+*.DS_Store
+venv*
