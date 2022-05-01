@@ -56,7 +56,7 @@ def getCleanedSentences(sentences: List[str], goal_length: int) -> Tuple[List[st
     print(f"Getting {goal_length} clean sentences for processing.")
     cleanedSentences = []
 
-    while len(cleanedSentences) < goal_length:
+    while len(cleanedSentences) < goal_length and len(sentences) > 0:
         currentClean = re.sub(
             "-*\s*\([A-Z][A-Z]\)\s*", "", sentences.pop(0).strip()).strip()
         currentClean = re.sub("\s*-\s", " ", currentClean).strip()
