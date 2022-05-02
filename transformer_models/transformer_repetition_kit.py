@@ -27,7 +27,7 @@ import pandas as pd
 # TODO improve console logging
 
 
-def load_data(ASR_df_filepath='..\\repetition_data_generation\\data\\generated_data.csv',
+def load_data(ASR_df_filepath='../repetition_data_generation/data/generated_data.csv',
               train_filename='train_sentence.csv',
               valid_filename='valid_sentence.csv',
               test_filename='test_sentence.csv',
@@ -53,7 +53,7 @@ def load_data(ASR_df_filepath='..\\repetition_data_generation\\data\\generated_d
                                              'err_tags'], header=None, index_col='')
 
     # For some reason, the tags have newlines in them. Remove them:
-    df.tags = df.err_tags.str.replace(r'\n', '')
+    # df.tags = df.err_tags.str.replace(r'\n', '')
     # TODO see if this is still the case; probably not
 
     # Lowercase all true text
@@ -89,7 +89,7 @@ def create_train_bpe_tokenizer(bpe_vocab_size,
                                asr_text_filepath='asr.txt',
                                ttx_text_filepath='ttx.txt',
                                save_tokenizer=True,
-                               tokenizer_filename=".\\data\\tokenizer-test.json"):
+                               tokenizer_filename="./data/tokenizer-test.json"):
     """
     TODO produce documentation.
 
@@ -173,7 +173,7 @@ def produce_iterators(train_filename,
     fields = {'original_text': ('true_text', TTX), 'err_tags': ('tags', TRG), 'asr_transcript': ('asr', ASR)}
 
     train_data, valid_data, test_data = TabularDataset.splits(
-        path='.\\',
+        path='./',
         train=train_filename,
         validation=valid_filename,
         test=test_filename,
