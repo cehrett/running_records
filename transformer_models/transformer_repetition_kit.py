@@ -22,12 +22,10 @@ from tokenizers.models import BPE
 from tokenizers.trainers import BpeTrainer
 from tokenizers.pre_tokenizers import Whitespace
 import pandas as pd
+import numpy as np
 
 
-# TODO improve console logging
-
-
-def load_data(ASR_df_filepath='../repetition_data_generation/data/generated_data.csv',
+def load_data(ASR_df_filepath='/home/cehrett/running_records/repetition_data_generation/data/generated_data.csv',
               train_filename='train_sentence.csv',
               valid_filename='valid_sentence.csv',
               test_filename='test_sentence.csv',
@@ -44,13 +42,12 @@ def load_data(ASR_df_filepath='../repetition_data_generation/data/generated_data
     :return:
     """
     # Get data
-    df = pd.read_csv(ASR_df_filepath, names=['',
-                                             'audio_path',
+    df = pd.read_csv(ASR_df_filepath, names=['audio_path',
                                              'asr_transcript',
                                              'original_text',
                                              'mutated_text',
                                              'index_tags',
-                                             'err_tags'], header=None, index_col='')
+                                             'err_tags'], header=0)
 
     # For some reason, the tags have newlines in them. Remove them:
     # df.tags = df.err_tags.str.replace(r'\n', '')
@@ -170,7 +167,8 @@ def produce_iterators(train_filename,
                 lower=False,
                 batch_first=True)
 
-    fields = {'original_text': ('true_text', TTX), 'err_tags': ('tags', TRG), 'asr_transcript': ('asr', ASR)}
+    # Note that currently the below uses the same Field for ttx as for asr. So ASR field defined above is not used. 
+    fields = {'original_text': ('true_text', TTX), 'err_tags': ('tags', TRG), 'asr_transcript': ('asr', TTX)}
 
     train_data, valid_data, test_data = TabularDataset.splits(
         path='./',
@@ -186,7 +184,8 @@ def produce_iterators(train_filename,
     TRG.build_vocab(train_data, min_freq=2)
     ASR.build_vocab(train_data, min_freq=2)
 
-    return train_data, valid_data, test_data, TTX, TRG, ASR
+    # Note that we're currently returning TTX as the Field for ASR tokenization, instead of ASR.
+    return train_data, valid_data, test_data, TTX, TRG, TTX
 
 
 def model_pipeline(hyperparameters,
@@ -216,12 +215,12 @@ def model_pipeline(hyperparameters,
         #       print(model)
 
         # and use them to train the model
-        train(model, train_iterator, valid_iterator, criterion, optimizer, config)
+        model, train_loss = train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR)
 
         # and test its final performance
-        test(model, test_iterator, criterion)
+        model, test_loss = test(model, test_iterator, criterion)
 
-    return model
+    return model, test_loss
 
 
 def make(config,
@@ -317,7 +316,7 @@ def make_model(config, device, TTX, TRG, ASR):
     return model
 
 
-def train(model, train_iterator, valid_iterator, criterion, optimizer, config):
+def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR):
     wandb.watch(model, criterion, log="all", log_freq=10)
     N_EPOCHS = config.epochs
     CLIP = config.clip
@@ -332,10 +331,11 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config):
         start_time = time.time()
         model.train()
         epoch_loss = 0
+        batch_loss = 1e5
 
         for i, batch in enumerate(train_iterator):
             try:
-                batch_loss = train_batch(model, batch, optimizer, criterion, CLIP)
+                batch_loss = train_batch(model, batch, optimizer, criterion, CLIP, TTX, TRG, ASR)
             except RuntimeError:
                 print('\nRuntimeError! Skipping this batch, using previous loss as est\n')
             example_ct += len(batch)
@@ -357,20 +357,20 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config):
         if valid_loss < best_valid_loss:
             best_valid_loss = valid_loss
             best_epoch = epoch
-            torch.save(model.state_dict(), 'rep_model_sample.pt')
+            torch.save(model.state_dict(), 'best_model.pt')
 
         print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
-        print(f'\tTrain Loss: {epoch_loss:.3f} | Train PPL: {math.exp(epoch_loss):7.3f}')
-        print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
+        print(f'\tTrain Loss: {epoch_loss:.3f} | Train PPL: {np.exp(epoch_loss):7.3f}')
+        print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {np.exp(valid_loss):7.3f}')
 
         if epoch - best_epoch >= config.early_stop:
             print(f'No improvement in {config.early_stop} epochs. Stopping training.\n')
             break
 
-    return model
+    return model, best_valid_loss
 
 
-def train_batch(model, batch, optimizer, criterion, clip):
+def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR):
     ttx_src = batch.true_text
     asr_src = batch.asr
     trg = batch.tags
@@ -380,6 +380,14 @@ def train_batch(model, batch, optimizer, criterion, clip):
     # TODO is cutting off part of trg correct when not decoding trg?
     output, _, _ = model(ttx_src, asr_src, trg[:, :-1])
 
+    # Print an example to the console, randomly
+    if np.random.randint(0,100)==1:
+        print('TRUE TEXT: ',' '.join([TTX.vocab.itos[i] for i in ttx_src[0]]))
+        print('ASR VERS.: ',' '.join([ASR.vocab.itos[i] for i in asr_src[0]]))
+        print('TRUE TAGS: ',' '.join([TRG.vocab.itos[i] for i in trg[0]]))
+        print('MODEL OUT: ',' '.join([TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
+        print()
+    
     # output = [batch size, ttx len - 1, output dim]
     # ttx_src = [batch size, ttx len]
 
@@ -454,13 +462,14 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-def test(model, test_iterator, criterion, model_filepath='rep_model_sample.pt'):
+def test(model, test_iterator, criterion, model_filepath='best_model.pt'):
     model.load_state_dict(torch.load(model_filepath))
 
     test_loss = evaluate(model, test_iterator, criterion)
     wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss)})
 
     print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
+    return model, test_loss
 
 
 class Encoder(nn.Module):

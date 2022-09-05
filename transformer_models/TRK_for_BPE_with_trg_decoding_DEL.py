@@ -9,24 +9,24 @@ import torch
 
 # %%
 # Set config for this run
-ASR_df_filepath = '../repetition_data_generation/data/output_del.csv'
+ASR_df_filepath = '../repetition_data_generation/data/del_audio.csv'
 
 config = dict(
-    epochs=5,
+    epochs=20,
     batch_size=128,
-    learning_rate=0.01,
+    learning_rate=0.00001,
     dataset=ASR_df_filepath,
     hid_dim=256,
-    enc_layers=4,
-    dec_layers=4,
+    enc_layers=5,
+    dec_layers=5,
     enc_heads=8,
     dec_heads=8,
     enc_pf_dim=512,
     dec_pf_dim=512,
     enc_dropout=0.1,
-    dec_dropout=0.2,
+    dec_dropout=0.1,
     clip=1,
-    bpe_vocab_size=1600,
+    bpe_vocab_size=2000,
     decode_trg = True,
     early_stop = 6
 )
@@ -46,19 +46,6 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
 torch.backends.cudnn.deterministic = True
-
-
-# %%
-#scr
-import pandas as pd
-df = pd.read_csv(ASR_df_filepath, names=['',
-                                             'audio_path',
-                                             'asr_transcript',
-                                             'original_text',
-                                             'mutated_text',
-                                             'index_tags',
-                                             'err_tags'], header=None, index_col='')
-
 
 # %%
 trk.load_data(ASR_df_filepath = ASR_df_filepath,
@@ -80,7 +67,7 @@ tokenizer = trk.create_train_bpe_tokenizer(config['bpe_vocab_size'],
 
 
 # %%
-train_data, valid_data, test_data, TTX, TRG, ASR =     trk.produce_iterators(train_filename,
+train_data, valid_data, test_data, TTX, TRG, ASR = trk.produce_iterators(train_filename,
                           valid_filename,
                           test_filename,
                           asr_tokenizer=tokenizer,
@@ -110,15 +97,15 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 # %%
-model = trk.model_pipeline(config, 
-                           device,
-                           train_data,
-                           valid_data,
-                           test_data,
-                           TTX,
-                           TRG,
-                           ASR
-                          )
+model, loss = trk.model_pipeline(config, 
+                                device,
+                                train_data,
+                                valid_data,
+                                test_data,
+                                TTX,
+                                TRG,
+                                ASR
+                                )
 
 
 # %%
