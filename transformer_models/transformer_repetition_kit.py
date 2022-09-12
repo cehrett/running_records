@@ -198,7 +198,7 @@ def model_pipeline(hyperparameters,
                    ASR
                    ):
     # tell wandb to get started
-    with wandb.init(project="running_records", config=hyperparameters):
+    with wandb.init(project="running_records", entity="witw", config=hyperparameters):
         # access all HPs through wandb.config, so logging matches execution!
         config = wandb.config
 
@@ -220,7 +220,7 @@ def model_pipeline(hyperparameters,
         # and test its final performance
         model, test_loss = test(model, test_iterator, criterion)
 
-    return model, test_loss
+    return model, train_loss, test_loss
 
 
 def make(config,
@@ -381,11 +381,12 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR):
     output, _, _ = model(ttx_src, asr_src, trg[:, :-1])
 
     # Print an example to the console, randomly
-    if np.random.randint(0,100)==1:
+    if np.random.randint(0,40)==1:
+        print()
         print('TRUE TEXT: ',' '.join([TTX.vocab.itos[i] for i in ttx_src[0]]))
         print('ASR VERS.: ',' '.join([ASR.vocab.itos[i] for i in asr_src[0]]))
         print('TRUE TAGS: ',' '.join([TRG.vocab.itos[i] for i in trg[0]]))
-        print('MODEL OUT: ',' '.join([TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
+        print('MODEL OUT:  <sos>',' '.join([TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
         print()
     
     # output = [batch size, ttx len - 1, output dim]

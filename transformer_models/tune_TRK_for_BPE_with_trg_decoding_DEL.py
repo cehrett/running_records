@@ -10,16 +10,16 @@ from math import gcd
 import time
 
 # Set number of evals that Hyperopt can perform
-max_evals = 18
+max_evals = 100
 
 # Set filepaths
-ASR_df_filepath = '/home/cehrett/running_records/repetition_data_generation/data/del_audio.csv'
+ASR_df_filepath = '/home/cehrett/running_records/repetition_data_generation/data/del_audio_subset_0.csv'
 asr_text_filepath = 'asr.txt'
 ttx_text_filepath = 'ttx.txt'
 train_filename = 'train_sentence.csv'
 valid_filename = 'valid_sentence.csv'
 test_filename = 'test_sentence.csv'
-trials_filename = 'trials_file'
+trials_filename = 'trials_file_subset_0'
 
 # Load data
 trk.load_data(ASR_df_filepath = ASR_df_filepath,
@@ -31,7 +31,7 @@ trk.load_data(ASR_df_filepath = ASR_df_filepath,
 
 # Define search space
 space = {
-    'epochs': 40,
+    'epochs': 256,
     'batch_size': hp.choice('batch_size',[64,128]),
     'learning_rate': hp.lognormal('learning_rate',-6,1),
     'dataset': ASR_df_filepath,
@@ -47,7 +47,8 @@ space = {
     'clip': 1,
     'bpe_vocab_size': scope.int(hp.qloguniform('bpe_vocab_size',6,8,200)),
     'decode_trg': True,
-    'early_stop': 8
+    'early_stop': 128,
+    'overfit': True # Used for dev, set to false for real training
 }
 
 # Define objective function
@@ -103,15 +104,20 @@ def hyperopt_train_test(params):
     params['hid_dim'] = lcm(params['enc_heads'],params['dec_heads']) * params['hid_dim_nheads_multiplier']
     
     # Train the model and get the loss
-    model, loss = trk.model_pipeline(params, 
-                                device,
-                                train_data,
-                                valid_data,
-                                test_data,
-                                TTX,
-                                TRG,
-                                ASR
-                                )
+    model, train_loss, test_loss = trk.model_pipeline(params, 
+                                    device,
+                                    train_data,
+                                    valid_data,
+                                    test_data,
+                                    TTX,
+                                    TRG,
+                                    ASR
+                                    )
+    
+    if params['overfit']:
+        loss = train_loss
+    else:
+        loss = test_loss
     
     return loss, model
 
