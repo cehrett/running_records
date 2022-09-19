@@ -126,7 +126,7 @@ def tokenize_TRG(tags):
     Tokenizes string representation of array into list of strings
     """
     tags = tags[1:-1]
-    return tags.split(" ")
+    return [tag[1] for tag in tags.split(" ")]
 
 
 def tokenize_ASR(asr, tokenizer):
