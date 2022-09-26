@@ -49,10 +49,6 @@ def load_data(ASR_df_filepath='/home/cehrett/running_records/repetition_data_gen
                                              'index_tags',
                                              'err_tags'], header=0)
 
-    # For some reason, the tags have newlines in them. Remove them:
-    # df.tags = df.err_tags.str.replace(r'\n', '')
-    # TODO see if this is still the case; probably not
-
     # Lowercase all true text
     df.loc[:, 'original_text'] = df.original_text.str.lower()
 
@@ -133,13 +129,16 @@ def tokenize_ASR(asr, tokenizer):
     """
     Tokenizes ASR transcript from a string into a list of strings
     """
-    return tokenizer.encode(asr).tokens
+    if tokenizer:
+        return tokenizer.encode(asr).tokens
+    else:
+        return [tok.strip(punctuation) for tok in asr.split(" ") if tok not in ['.', ',', '!', '?', ';', ':', ]]
 
 
 def produce_iterators(train_filename,
                       valid_filename,
                       test_filename,
-                      asr_tokenizer,
+                      asr_tokenizer=None,
                       ttx_tokenizer=None
                       ):
     """
@@ -167,9 +166,7 @@ def produce_iterators(train_filename,
                 lower=False,
                 batch_first=True)
 
-    # Note that currently the below uses the same Field for ttx as for asr. So ASR field defined above is not used.
-    fields = {'original_text': ('true_text', TTX), 'err_tags': (
-        'tags', TRG), 'asr_transcript': ('asr', TTX)}
+    fields = {'original_text': ('true_text', TTX), 'err_tags': ('tags', TRG), 'asr_transcript': ('asr', ASR)}
 
     train_data, valid_data, test_data = TabularDataset.splits(
         path='./',

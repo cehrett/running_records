@@ -16,12 +16,16 @@ parser = argparse.ArgumentParser(description="Use hyperopt to tune the transform
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("-d", "--data", help="data file path")
 parser.add_argument("-m", "--max_evals", help="number of hyperopt trials")
+parser.add_argument("-b", "--use_bpe", help="Use byte-pair encoding", nargs='?', const=1, default=False)
 args = parser.parse_args()
 config = vars(args)
 print('config:',config)
 
 # Set number of evals that Hyperopt can perform
 max_evals = int(config['max_evals'])
+
+# Get whether to use bpe
+bpe = config['use_bpe']
 
 # Set filepaths
 ASR_df_filepath = config['data']
@@ -88,13 +92,16 @@ def lcm(a, b):
 # Define hyperopt training function
 def hyperopt_train_test(params):
 	# Create tokenizer
-	tokenizer = trk.create_train_bpe_tokenizer(params['bpe_vocab_size'],
-				asr_text_filepath = \
-				asr_text_filepath,
-				ttx_text_filepath = ttx_text_filepath,
-				save_tokenizer = False,
-				tokenizer_filename = "./tokenizer-test.json"
-				)
+	if bpe: 
+		tokenizer = trk.create_train_bpe_tokenizer(params['bpe_vocab_size'],
+			asr_text_filepath = \
+			asr_text_filepath,
+			ttx_text_filepath = ttx_text_filepath,
+			save_tokenizer = False,
+			tokenizer_filename = "./tokenizer-test.json"
+			)
+	else:
+		tokenizer = None
 	
 	# Preprocess data
 	train_data, valid_data, test_data, TTX, TRG, ASR = trk.produce_iterators(train_filename,
@@ -105,9 +112,10 @@ def hyperopt_train_test(params):
 													)
 	
 	# Test out the tokenizer
-	output = tokenizer.encode("Hello, y'all! How are you 😁 ? [WSP]")
-	print(output.tokens)
-	print(output.ids)
+	if bpe:
+		output = tokenizer.encode("Hello, y'all! How are you 😁 ? [WSP]")
+		print(output.tokens)
+		print(output.ids)
 	
 	device = torch.device('cuda')
 	
