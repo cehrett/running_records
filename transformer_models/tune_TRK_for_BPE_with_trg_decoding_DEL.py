@@ -63,7 +63,7 @@ space = {
 	'bpe_vocab_size': scope.int(hp.qloguniform('bpe_vocab_size',6,8,200)),
 	'decode_trg': True,
 	'early_stop': 128,
-	'overfit': True # Used for dev, set to false for real training
+	'overfit': False # Used for dev, set to false for real training
 }
 
 # Define objective function

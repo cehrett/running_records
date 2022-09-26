@@ -350,7 +350,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
             epoch_loss += batch_loss
 
         epoch_loss = epoch_loss / len(train_iterator)
-        valid_loss = evaluate(model, valid_iterator, criterion)
+        valid_loss = evaluate(model, valid_iterator, criterion, TTX=TTX, TRG=TRG, ASR=ASR)
 
         end_time = time.time()
 
@@ -426,7 +426,7 @@ def train_log(loss, example_ct, epoch):
     print(f"Loss after " + str(example_ct).zfill(5) + f" examples: {loss:.3f}")
 
 
-def evaluate(model, iterator, criterion):
+def evaluate(model, iterator, criterion, TTX=None, TRG=None, ASR=None):
     model.eval()
 
     epoch_loss = 0
@@ -448,7 +448,7 @@ def evaluate(model, iterator, criterion):
             #             print('output shape:',output.shape)
             #             print('trg shape:',trg.shape)
 
-            output = output.contiguous().view(-1, output_dim)
+            output_for_scoring = output.contiguous().view(-1, output_dim)
             trg = trg[:, 1:].contiguous().view(-1)
 
             # output = [batch size * trg len - 1, output dim]
@@ -456,8 +456,15 @@ def evaluate(model, iterator, criterion):
 
             #             print('output shape:',output.shape)
             #             print('trg shape:',trg.shape)
-            loss = criterion(output, trg)
+            loss = criterion(output_for_scoring, trg)
 
+            if TTX is not None and TRG is not None and ASR is not None and np.random.randint(0, 10) == 1:
+                print("VALIDATION OUTPUTS:")
+                print('TRUE TEXT: ', ' '.join([TTX.vocab.itos[i] for i in ttx_src[0]]))
+                print('ASR VERS.: ', ' '.join([ASR.vocab.itos[i] for i in asr_src[0]]))
+                print('TRUE TAGS: ', ' '.join([TRG.vocab.itos[i] for i in batch.tags[0]]))
+                print('MODEL OUT:  <sos>', ' '.join([TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
+                print()
             epoch_loss += loss.item()
 
     return epoch_loss / len(iterator)
