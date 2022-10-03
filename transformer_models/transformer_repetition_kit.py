@@ -182,8 +182,8 @@ def produce_iterators(train_filename,
     TRG.build_vocab(train_data, min_freq=2)
     ASR.build_vocab(train_data, min_freq=2)
 
-    # Note that we're currently returning TTX as the Field for ASR tokenization, instead of ASR.
-    return train_data, valid_data, test_data, TTX, TRG, TTX
+    # Return datasets along with vocab objects for each of TTX,TRG,ASR
+    return train_data, valid_data, test_data, TTX, TRG, ASR
 
 
 def model_pipeline(hyperparameters,
