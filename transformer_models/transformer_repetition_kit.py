@@ -217,7 +217,7 @@ def model_pipeline(hyperparameters,
             model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR)
 
         # and test its final performance
-        model, test_loss = test(model, test_iterator, criterion)
+        model, test_loss = test(model, test_iterator, criterion, TTX, TRG, ASR)
 
     return model, train_loss, test_loss
 
@@ -350,7 +350,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
             epoch_loss += batch_loss
 
         epoch_loss = epoch_loss / len(train_iterator)
-        valid_loss = evaluate(model, valid_iterator, criterion, TTX=TTX, TRG=TRG, ASR=ASR)
+        valid_loss = evaluate(model, valid_iterator, criterion, TTX, TRG, ASR)
 
         end_time = time.time()
 
@@ -426,7 +426,7 @@ def train_log(loss, example_ct, epoch):
     print(f"Loss after " + str(example_ct).zfill(5) + f" examples: {loss:.3f}")
 
 
-def evaluate(model, iterator, criterion, TTX=None, TRG=None, ASR=None):
+def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
     model.eval()
 
     epoch_loss = 0
@@ -458,7 +458,7 @@ def evaluate(model, iterator, criterion, TTX=None, TRG=None, ASR=None):
             #             print('trg shape:',trg.shape)
             loss = criterion(output_for_scoring, trg)
 
-            if TTX is not None and TRG is not None and ASR is not None and np.random.randint(0, 10) == 1:
+            if np.random.randint(0, 10) == 1 or print_outputs:
                 print("VALIDATION OUTPUTS:")
                 print('TRUE TEXT: ', ' '.join([TTX.vocab.itos[i] for i in ttx_src[0]]))
                 print('ASR VERS.: ', ' '.join([ASR.vocab.itos[i] for i in asr_src[0]]))
@@ -477,10 +477,10 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-def test(model, test_iterator, criterion, model_filepath='best_model.pt'):
+def test(model, test_iterator, criterion, TTX, TRG, ASR, model_filepath='best_model.pt'):
     model.load_state_dict(torch.load(model_filepath))
 
-    test_loss = evaluate(model, test_iterator, criterion)
+    test_loss = evaluate(model, test_iterator, criterion, TTX, TRG, ASR, print_outputs=True)
     wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss)})
 
     print(
