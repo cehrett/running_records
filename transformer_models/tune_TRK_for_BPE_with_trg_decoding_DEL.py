@@ -48,7 +48,7 @@ trk.load_data(ASR_df_filepath = ASR_df_filepath,
 space = {
 	'epochs': 256,
 	'batch_size': 64, #hp.choice('batch_size',[64,128]),
-	'learning_rate': 0.0001443, #hp.lognormal('learning_rate',-6,1),
+	'learning_rate': hp.lognormal('learning_rate',-6,1),
 	'dataset': ASR_df_filepath,
 	'hid_dim_nheads_multiplier': scope.int(hp.quniform('hid_dim_nheads_multiplier',6,50,4)),
 	'enc_layers': scope.int(hp.quniform('enc_layers',2,8,1)),
@@ -60,10 +60,11 @@ space = {
 	'enc_dropout': 0.06174325431277418, #hp.lognormal('enc_dropout',-2.5,1),
 	'dec_dropout': 0.0059501976431332645, #hp.lognormal('dec_dropout',-2.5,1),
 	'clip': 1,
-	'bpe_vocab_size': scope.int(hp.qloguniform('bpe_vocab_size',6,8,200)),
+	#'bpe_vocab_size': scope.int(hp.qloguniform('bpe_vocab_size',6,8,200)),
 	'decode_trg': True,
-	'early_stop': 128,
-	'overfit': False # Used for dev, set to false for real training
+	'early_stop': 20,
+	'overfit': False, # Used for dev, set to false for real training,
+	'phonetics': True # Track whether we use a phonetic dataset. This is important due to column selection,
 }
 
 # Define objective function

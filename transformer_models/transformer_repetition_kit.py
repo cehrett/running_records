@@ -458,7 +458,7 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
             #             print('trg shape:',trg.shape)
             loss = criterion(output_for_scoring, trg)
 
-            if np.random.randint(0, 10) == 1 or print_outputs:
+            if np.random.randint(0, 40) == 1 or print_outputs:
                 print("VALIDATION OUTPUTS:")
                 print('TRUE TEXT: ', ' '.join([TTX.vocab.itos[i] for i in ttx_src[0]]))
                 print('ASR VERS.: ', ' '.join([ASR.vocab.itos[i] for i in asr_src[0]]))
