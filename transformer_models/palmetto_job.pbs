@@ -1,0 +1,11 @@
+#PBS -N train_rr_model
+#PBS -l select=1:ncpus=40:mem=62gb:ngpus=1:gpu_model=v100,walltime=48:00:00
+#PBS -m abe
+#PBS -M jmdanie@clemson.edu
+#PBS -o job_stdout.txt
+#PBS -e job_stderr.txt
+
+source ~/.bashrc
+cd ~/running_records/transformer_models
+conda activate rr_env
+python tune_TRK_for_BPE_with_trg_decoding_DEL.py -d ../repetition_data_generation/data/medium_del_audio_phonetics_with_cols.csv -m 10
