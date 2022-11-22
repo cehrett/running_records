@@ -60,7 +60,7 @@ space = {
 	'enc_dropout': 0.06174325431277418, #hp.lognormal('enc_dropout',-2.5,1),
 	'dec_dropout': 0.0059501976431332645, #hp.lognormal('dec_dropout',-2.5,1),
 	'clip': 1,
-	#'bpe_vocab_size': scope.int(hp.qloguniform('bpe_vocab_size',6,8,200)),
+	'bpe_vocab_size': scope.int(hp.qloguniform('bpe_vocab_size',6,8,200)),
 	'decode_trg': True,
 	'early_stop': 20,
 	'overfit': False, # Used for dev, set to false for real training,

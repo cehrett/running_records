@@ -52,6 +52,10 @@ def load_data(ASR_df_filepath='/home/cehrett/running_records/repetition_data_gen
     # Lowercase all true text
     df.loc[:, 'original_text'] = df.original_text.str.lower()
 
+    # Add duplicate columns to facilitate the acquisition of pos embeddings
+    df['original_text_pos'] = df['original_text']
+    df['asr_transcript_pos'] = df['asr_transcript']
+
     # Data is already shuffled, so no need to do that now.
     # TODO verify this is still the case; probably not
 
@@ -134,6 +138,15 @@ def tokenize_ASR(asr, tokenizer):
     else:
         return [tok.strip(punctuation) for tok in asr.split(" ") if tok not in ['.', ',', '!', '?', ';', ':', ]]
 
+def pos_embed(text, tokenizer=None):
+    """
+    Provides position info about English text
+    """
+    if tokenizer:
+        return tokenizer.encode(text).word_ids
+    else:
+        return [i for i,tok in enumerate(text.split(" ")) if tok not in ['.', ',', '!', '?', ';', ':', ]]
+
 
 def produce_iterators(train_filename,
                       valid_filename,
@@ -166,7 +179,27 @@ def produce_iterators(train_filename,
                 lower=False,
                 batch_first=True)
 
-    fields = {'original_text': ('true_text', TTX), 'err_tags': ('tags', TRG), 'asr_transcript': ('asr', ASR)}
+    TTX_POS = Field(tokenize = lambda x: pos_embed(x, ttx_tokenizer),
+                use_vocab=False,
+                init_token=0, 
+                eos_token=0,
+                lower=False,
+                batch_first=True,
+                pad_token=0)
+
+    ASR_POS = Field(tokenize = lambda x: pos_embed(x, asr_tokenizer),
+                use_vocab=False,
+                init_token=0,
+                eos_token=0,
+                lower=False,
+                batch_first=True,
+                pad_token=0)
+
+    fields = {'original_text': ('true_text', TTX), 
+        'err_tags': ('tags', TRG), 
+        'asr_transcript': ('asr', ASR),
+        'original_text_pos': ('true_text_pos', TTX_POS),
+        'asr_transcript_pos': ('asr_pos', ASR_POS)}
 
     train_data, valid_data, test_data = TabularDataset.splits(
         path='./',
@@ -333,6 +366,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
         epoch_loss = 0
         batch_loss = 1e5
 
+
         for i, batch in enumerate(train_iterator):
             try:
                 batch_loss = train_batch(
@@ -380,11 +414,13 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR):
     ttx_src = batch.true_text
     asr_src = batch.asr
     trg = batch.tags
+    ttx_pos = batch.true_text_pos
+    asr_pos = batch.asr_pos
 
     optimizer.zero_grad()
 
-    # TODO is cutting off part of trg correct when not decoding trg?
-    output, _, _ = model(ttx_src, asr_src, trg[:, :-1])
+    # TODO is cutting off part of TRG correct?
+    output, _, _ = model(ttx_src, ttx_pos, asr_src, asr_pos, trg[:, :-1])
 
     # Print an example to the console, randomly
     if np.random.randint(0, 40) == 1:
@@ -436,9 +472,11 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
             ttx_src = batch.true_text
             asr_src = batch.asr
             trg = batch.tags
+            ttx_pos = batch.true_text_pos
+            asr_pos = batch.asr_pos
 
             # TODO is cutting off part of trg correct when not decoding trg?
-            output, _, _ = model(ttx_src, asr_src, trg[:, :-1])
+            output, _, _ = model(ttx_src, ttx_pos, asr_src, asr_pos, trg[:, :-1])
 
             # output = [batch size, trg len - 1, output dim]
             # ttx_src = [batch size, ttx len]
@@ -517,15 +555,16 @@ class Encoder(nn.Module):
 
         self.scale = torch.sqrt(torch.FloatTensor([hid_dim])).to(device)
 
-    def forward(self, src, src_mask):
+    def forward(self, src, src_pos, src_mask):
         # src = [batch size, src len]
         # src_mask = [batch size, 1, 1, src len]
 
         batch_size = src.shape[0]
         src_len = src.shape[1]
 
-        pos = torch.arange(0, src_len).unsqueeze(
-            0).repeat(batch_size, 1).to(self.device)
+        # pos = torch.arange(0, src_len).unsqueeze(
+        #     0).repeat(batch_size, 1).to(self.device)
+        pos = torch.tensor(src_pos)
 
         # pos = [batch size, src len]
 
@@ -736,7 +775,7 @@ class Decoder_ttx(nn.Module):
 
         self.scale = torch.sqrt(torch.FloatTensor([hid_dim])).to(device)
 
-    def forward(self, ttx_src, ttx_enc_src, asr_enc_src, ttx_mask, ttx_src_mask, asr_src_mask):
+    def forward(self, ttx_src, ttx_enc_src, ttx_pos, asr_enc_src, ttx_mask, ttx_src_mask, asr_src_mask):
         # trg = [batch size, trg len]
         # ttx_src = [batch size, ttx src len]
         # enc_src = [batch size, src len, hid dim]
@@ -746,8 +785,9 @@ class Decoder_ttx(nn.Module):
         batch_size = ttx_src.shape[0]
         ttx_len = ttx_src.shape[1]
 
-        pos = torch.arange(0, ttx_len).unsqueeze(
-            0).repeat(batch_size, 1).to(self.device)
+        pos = torch.tensor(ttx_pos)
+        # pos = torch.arange(0, ttx_len).unsqueeze(
+        #     0).repeat(batch_size, 1).to(self.device)
 
         # pos = [batch size, ttx len]
 
@@ -813,7 +853,7 @@ class Decoder_trg(nn.Module):
 
         batch_size = trg.shape[0]
         trg_len = trg.shape[1]
-
+        
         pos = torch.arange(0, trg_len).unsqueeze(
             0).repeat(batch_size, 1).to(self.device)
 
@@ -1136,7 +1176,7 @@ class Seq2Seq_trg(nn.Module):
 
         return trg_mask
 
-    def forward(self, ttx_src, asr_src, trg):
+    def forward(self, ttx_src, ttx_pos, asr_src, asr_pos, trg):
         # src = [batch size, src len]
         # trg = [batch size, trg len]
 
@@ -1147,8 +1187,8 @@ class Seq2Seq_trg(nn.Module):
         # src_mask = [batch size, 1, 1, src len]
         # trg_mask = [batch size, 1, trg len, trg len]
 
-        ttx_enc_src = self.ttx_encoder(ttx_src, ttx_src_mask)
-        asr_enc_src = self.asr_encoder(asr_src, asr_src_mask)
+        ttx_enc_src = self.ttx_encoder(ttx_src, ttx_pos, ttx_src_mask)
+        asr_enc_src = self.asr_encoder(asr_src, asr_pos, asr_src_mask)
 
         # enc_src = [batch size, src len, hid dim]
 
