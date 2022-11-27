@@ -98,5 +98,5 @@ def main():
 
 
 if __name__ == '__main__':
-    wandb.agent(args['sweep_id'], function=main, count=max_evals,
+    wandb.agent(config['sweep_id'], function=main, count=max_evals,
                 project="running_records", entity="witw")
