@@ -1,0 +1,69 @@
+method: bayes
+metric:
+    name: test_loss
+    goal: minimize
+parameters:
+    epochs:
+        value: 256
+    batch_size:
+        value: 64
+    learning_rate:
+        distribution: log_normal
+        mu: -6
+        sigma: 1
+    hid_dim_nheads_multiplier:
+        distribution: q_uniform
+        min: 6
+        max: 50
+        q: 4
+    enc_layers:
+        distribution: q_uniform
+        min: 2
+        max: 8
+        q: 1
+    dec_layers:
+        distribution: q_uniform
+        min: 2
+        max: 8
+        q: 1
+    enc_heads:
+        distribution: q_uniform
+        min: 2
+        max: 12
+        q: 2
+    dec_heads:
+        distribution: q_uniform
+        min: 2
+        max: 12
+        q: 2
+    enc_pf_dim:
+        distribution: q_log_uniform
+        min: 3
+        max: 7
+        q: 40
+    dec_pf_dim:
+        distribution: q_log_uniform
+        min: 3
+        max: 7
+        q: 40
+    enc_dropout:
+        distribution: log_normal
+        mu: -2.5
+        sigma: 1
+    dec_dropout:
+        distribution: log_normal
+        mu: -2.5
+        sigma: 1
+    clip:
+        value: 1
+    bpe:
+        value: True
+    bpe_vocab_size:
+        distribution: q_log_uniform
+        min: 6
+        max: 8
+        q: 200
+    decode_trg:
+        value: True
+    early_stop:
+        value: 20
