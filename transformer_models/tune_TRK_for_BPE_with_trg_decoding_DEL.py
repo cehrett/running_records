@@ -48,6 +48,7 @@ def main():
     our hyperparamters, results, and suggest new hyperparemeters.
     """
     wandb.init()
+    wandb.config['data'] = config['data']
 
     # Create tokenizer
     if wandb.config['bpe']:
