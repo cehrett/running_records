@@ -217,7 +217,7 @@ def produce_iterators(train_filename,
     ASR.build_vocab(train_data, min_freq=2)
 
     # Return datasets along with vocab objects for each of TTX,TRG,ASR
-    return train_data, valid_data, test_data, TTX, TRG, ASR
+    return train_data, valid_data, test_data, TTX, TRG, ASR, TTX_POS, ASR_POS
 
 
 def model_pipeline(device,
@@ -226,7 +226,9 @@ def model_pipeline(device,
                    test_data,
                    TTX,
                    TRG,
-                   ASR
+                   ASR,
+                   TTX_POS,
+                   ASR_POS
                    ):
     # access all HPs through wandb.config, so logging matches execution!
     config = wandb.config
@@ -245,10 +247,11 @@ def model_pipeline(device,
 
     # and use them to train the model
     model, train_loss = train(
-        model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR)
+        model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS)
 
     # and test its final performance
-    model, test_loss = test(model, test_iterator, criterion, TTX, TRG, ASR)
+    model, test_loss = test(model, test_iterator, criterion,
+                            TTX, TRG, ASR)
 
     return model, train_loss, test_loss
 
@@ -347,7 +350,7 @@ def make_model(config, device, TTX, TRG, ASR):
     return model
 
 
-def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR):
+def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS):
     wandb.watch(model, criterion, log="all", log_freq=10)
     N_EPOCHS = config.epochs
     CLIP = config.clip
@@ -367,7 +370,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
         for i, batch in enumerate(train_iterator):
             try:
                 batch_loss = train_batch(
-                    model, batch, optimizer, criterion, CLIP, TTX, TRG, ASR)
+                    model, batch, optimizer, criterion, CLIP, TTX, TRG, ASR, TTX_POS, ASR_POS)
             except RuntimeError:
                 print(
                     '\nRuntimeError! Skipping this batch, using previous loss as est\n')
@@ -407,7 +410,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
     return model, best_valid_loss
 
 
-def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR):
+def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS, ASR_POS):
     ttx_src = batch.true_text
     asr_src = batch.asr
     trg = batch.tags
@@ -423,7 +426,11 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR):
     if np.random.randint(0, 40) == 1:
         print()
         print('TRUE TEXT: ', ' '.join([TTX.vocab.itos[i] for i in ttx_src[0]]))
+        print("TRUE TEXT POS: ", ' '.join(
+            [TTX_POS.vocab.itos[i] for i in ttx_pos[0]]))
         print('ASR VERS.: ', ' '.join([ASR.vocab.itos[i] for i in asr_src[0]]))
+        print("TRUE TEXT POS: ", ' '.join(
+            [ASR_POS.vocab.itos[i] for i in asr_pos[0]]))
         print('TRUE TAGS: ', ' '.join([TRG.vocab.itos[i] for i in trg[0]]))
         print('MODEL OUT:  <sos>', ' '.join(
             [TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))

@@ -62,12 +62,12 @@ def main():
         tokenizer = None
 
     # Preprocess data
-    train_data, valid_data, test_data, TTX, TRG, ASR = trk.produce_iterators(train_filename,
-                                                                             valid_filename,
-                                                                             test_filename,
-                                                                             asr_tokenizer=tokenizer,
-                                                                             ttx_tokenizer=tokenizer
-                                                                             )
+    train_data, valid_data, test_data, TTX, TRG, ASR, TTX_POS, ASR_POS = trk.produce_iterators(train_filename,
+                                                                                               valid_filename,
+                                                                                               test_filename,
+                                                                                               asr_tokenizer=tokenizer,
+                                                                                               ttx_tokenizer=tokenizer
+                                                                                               )
 
     # Test out the tokenizer
     if wandb.config['bpe']:
@@ -89,7 +89,9 @@ def main():
                                                       test_data,
                                                       TTX,
                                                       TRG,
-                                                      ASR
+                                                      ASR,
+                                                      TTX_POS,
+                                                      ASR_POS
                                                       )
 
     # Log that loss to Weights & Biases as a Summary metric.
