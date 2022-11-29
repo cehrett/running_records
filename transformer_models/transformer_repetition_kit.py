@@ -24,6 +24,9 @@ from tokenizers.pre_tokenizers import Whitespace
 import pandas as pd
 import numpy as np
 
+import socket
+
+MODEL_SAVE_FILENAME = socket.gethostname().split('.')[0] + '_model.pt'
 
 def load_data(ASR_df_filepath='/home/cehrett/running_records/repetition_data_generation/data/generated_data.csv',
               train_filename='train_sentence.csv',
@@ -393,7 +396,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
         if valid_loss < best_valid_loss:
             best_valid_loss = valid_loss
             best_epoch = epoch
-            torch.save(model.state_dict(), 'best_model.pt')
+            torch.save(model.state_dict(), MODEL_SAVE_FILENAME)
 
         print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
         print(
@@ -447,8 +450,8 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
         for sentence in true_text_out:
             print(' '.join(sentence))
 
-        asr_word_out = [TTX.vocab.itos[i] for i in ttx_src[0]]
-        asr_pos_out = [val for val in ttx_pos[0].tolist()]
+        asr_word_out = [ASR.vocab.itos[i] for i in asr_src[0]]
+        asr_pos_out = [val for val in asr_pos[0].tolist()]
         asr_text_out = [[]]
         for word, pos in zip(asr_word_out, asr_pos_out):
             if pos == len(asr_text_out):
@@ -476,6 +479,8 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
 
     output = output.contiguous().view(-1, output_dim)
     trg = trg[:, 1:].contiguous().view(-1)
+
+    # TODO: Get F1 Score and Precision Scores Here
 
     # output = [batch size * trg len - 1, output dim]
     # trg = [batch size * trg len - 1]
@@ -558,7 +563,7 @@ def epoch_time(start_time, end_time):
 
 
 def test(model, test_iterator, criterion, TTX, TRG, ASR, model_filepath='best_model.pt'):
-    model.load_state_dict(torch.load(model_filepath))
+    model.load_state_dict(torch.load(MODEL_SAVE_FILENAME))
 
     test_loss = evaluate(model, test_iterator, criterion,
                          TTX, TRG, ASR, print_outputs=True)
