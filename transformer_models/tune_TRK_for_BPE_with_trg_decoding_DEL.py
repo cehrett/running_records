@@ -5,6 +5,8 @@ import numpy as np
 import torch
 from math import gcd
 import time
+import traceback
+import sys
 
 import argparse
 
@@ -47,57 +49,62 @@ def main():
     This is our main training routine, using weights and biases to track
     our hyperparamters, results, and suggest new hyperparemeters.
     """
-    wandb.init()
-    wandb.config['data'] = config['data']
+    try:
+        wandb.init()
+        wandb.config['data'] = config['data']
 
-    # Create tokenizer
-    if wandb.config['bpe']:
-        tokenizer = trk.create_train_bpe_tokenizer(wandb.config['bpe_vocab_size'],
-                                                   asr_text_filepath=asr_text_filepath,
-                                                   ttx_text_filepath=ttx_text_filepath,
-                                                   save_tokenizer=False,
-                                                   tokenizer_filename="./tokenizer-test.json"
-                                                   )
-    else:
-        tokenizer = None
+        # Create tokenizer
+        if wandb.config['bpe']:
+            tokenizer = trk.create_train_bpe_tokenizer(wandb.config['bpe_vocab_size'],
+                                                       asr_text_filepath=asr_text_filepath,
+                                                       ttx_text_filepath=ttx_text_filepath,
+                                                       save_tokenizer=False,
+                                                       tokenizer_filename="./tokenizer-test.json"
+                                                       )
+        else:
+            tokenizer = None
 
-    # Preprocess data
-    train_data, valid_data, test_data, TTX, TRG, ASR, TTX_POS, ASR_POS = trk.produce_iterators(train_filename,
-                                                                                               valid_filename,
-                                                                                               test_filename,
-                                                                                               asr_tokenizer=tokenizer,
-                                                                                               ttx_tokenizer=tokenizer
-                                                                                               )
+        # Preprocess data
+        train_data, valid_data, test_data, TTX, TRG, ASR, TTX_POS, ASR_POS = trk.produce_iterators(train_filename,
+                                                                                                   valid_filename,
+                                                                                                   test_filename,
+                                                                                                   asr_tokenizer=tokenizer,
+                                                                                                   ttx_tokenizer=tokenizer
+                                                                                                   )
 
-    # Test out the tokenizer
-    if wandb.config['bpe']:
-        output = tokenizer.encode("Hello, y'all! How are you 😁 ? [WSP]")
-        print(output.tokens)
-        print(output.ids)
+        # Test out the tokenizer
+        if wandb.config['bpe']:
+            output = tokenizer.encode("Hello, y'all! How are you 😁 ? [WSP]")
+            print(output.tokens)
+            print(output.ids)
 
-    # Tell Torch that we want to use the GPU
-    device = torch.device('cuda')
+        # Tell Torch that we want to use the GPU
+        device = torch.device('cuda')
 
-    # Update params. This is to fet our hidden dimension number.
-    wandb.config['hid_dim'] = lcm(
-        wandb.config['enc_heads'], wandb.config['dec_heads']) * wandb.config['hid_dim_nheads_multiplier']
+        # Update params. This is to fet our hidden dimension number.
+        wandb.config['hid_dim'] = lcm(
+            wandb.config['enc_heads'], wandb.config['dec_heads']) * wandb.config['hid_dim_nheads_multiplier']
 
-    # Train the model and get the loss
-    model, train_loss, test_loss = trk.model_pipeline(device,
-                                                      train_data,
-                                                      valid_data,
-                                                      test_data,
-                                                      TTX,
-                                                      TRG,
-                                                      ASR,
-                                                      TTX_POS,
-                                                      ASR_POS
-                                                      )
+        # Train the model and get the loss
+        model, train_loss, test_loss = trk.model_pipeline(device,
+                                                          train_data,
+                                                          valid_data,
+                                                          test_data,
+                                                          TTX,
+                                                          TRG,
+                                                          ASR,
+                                                          TTX_POS,
+                                                          ASR_POS
+                                                          )
 
-    # Log that loss to Weights & Biases as a Summary metric.
-    wandb.run.summary['test_loss'] = test_loss
+        # Log that loss to Weights & Biases as a Summary metric.
+        wandb.run.summary['test_loss'] = test_loss
 
-    torch.cuda.empty_cache()  # Needed so we don't kill off GPU Memory
+        torch.cuda.empty_cache()  # Needed so we don't kill off GPU Memory
+    except Exception as e:
+        print(e)
+        print(traceback.print_exc(), file=sys.stderr)
+        raise e
 
 
 if __name__ == '__main__':
