@@ -456,7 +456,7 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
         for word, pos in zip(asr_word_out, asr_pos_out):
             if pos == len(asr_text_out):
                 asr_text_out.append([])
-
+            asr_text_out[pos].append(word)
         print("ASR: ")
         for sentence in asr_text_out:
             print(' '.join(sentence))
