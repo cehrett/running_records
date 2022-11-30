@@ -24,6 +24,9 @@ from tokenizers.pre_tokenizers import Whitespace
 import pandas as pd
 import numpy as np
 
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+
 
 def load_data(ASR_df_filepath='/home/cehrett/running_records/repetition_data_generation/data/generated_data.csv',
               train_filename='train_sentence.csv',
@@ -278,7 +281,7 @@ def make(config,
 
     # Make the loss and optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
-    if config['decode_trg']:
+    if config['decode_trg']: 
         ignore_index = TRG.vocab.stoi[TRG.pad_token]
     else:
         ignore_index = TTX.vocab.stoi[TTX.pad_token]
@@ -348,6 +351,33 @@ def make_model(config, device, TTX, TRG, ASR):
     model = Seq2Seq(ttx_enc, asr_enc, dec, TTX_PAD_IDX,
                     ASR_PAD_IDX, TRG_PAD_IDX, device).to(device)
     return model
+
+def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label: int, pad_label: int):
+    # output should be the softamx outputs of the model, and trg
+    # should be the true labels. 
+    cur_output = output.clone()
+    cur_trg = trg.clone()
+
+    # Get the predicted class by taking the argmax of each word
+    cur_output = cur_output.argmax(dim=1)
+
+    # Remove all indexes where the correct label is a PAD token. We don't care
+    # about these in our calculaton. Both cur_output and trg need to have the same
+    # number of elements for the calculation to work.
+    cur_output = cur_output[cur_trg != pad_label]
+    cur_trg = cur_trg[cur_trg != pad_label]
+
+    # Now, we only care about deletions. For each value in both tensors, keep it the del_label
+    # if it is a del_label, and set it to 0 otherwise.
+    cur_output[cur_output != del_label] = 0
+    cur_trg[cur_trg != del_label] = 0
+
+    # Now we can call the sklearn methods for precision, recall, with a focus
+    # on the DEL label.
+    precision = precision_score(cur_trg, cur_output, average='binary', pos_label=del_label)
+    recall = recall_score(cur_trg, cur_output, average='binary', pos_label=del_label)
+
+    return precision, recall
 
 
 def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS):
@@ -476,6 +506,23 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
 
     output = output.contiguous().view(-1, output_dim)
     trg = trg[:, 1:].contiguous().view(-1)
+
+    # Calculate the Recall, Precision and F1 Score for Deletions
+    # First, we need to find the padding token and the deletion token
+    precision, recall = get_precision_and_recall(output, trg, TRG.vocab.stoi['<del>'], TRG.vocab.stoi['<pad>'])
+
+    wandb.log({"train_precision": precision, "train_recall": recall})
+
+    # Next, we'll go ahead and copy the tensor
+    output_for_recall = output.clone()
+
+    # Apply the argmax function to each inner tensor in the output tensor
+    # Each index will now be the predicted tag value.
+    output_for_recall = torch.argmax(output_for_recall, dim=1)
+
+
+
+
 
     # output = [batch size * trg len - 1, output dim]
     # trg = [batch size * trg len - 1]
