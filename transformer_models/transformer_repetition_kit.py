@@ -353,10 +353,12 @@ def make_model(config, device, TTX, TRG, ASR):
     return model
 
 def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label: int, pad_label: int):
+    import pdb
+    pdb.set_trace()
     # output should be the softamx outputs of the model, and trg
     # should be the true labels. 
-    cur_output = output.clone()
-    cur_trg = trg.clone()
+    cur_output = output.clone().cpu()
+    cur_trg = trg.clone().cpu()
 
     # Get the predicted class by taking the argmax of each word
     cur_output = cur_output.argmax(dim=1)
