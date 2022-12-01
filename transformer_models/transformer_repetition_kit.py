@@ -375,6 +375,7 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     cur_trg[cur_trg != del_label] = 0
     cur_trg[cur_trg == del_label] = 1
     
+
     # Now we can call the sklearn methods for precision, recall, with a focus
     # on the DEL label.
     precision = precision_score(cur_trg, cur_output, average='binary', pos_label=1)
@@ -402,7 +403,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
 
         for i, batch in enumerate(train_iterator):
             try:
-                batch_loss = train_batch(
+                batch_loss, precision, recall = train_batch(
                     model, batch, optimizer, criterion, CLIP, TTX, TRG, ASR, TTX_POS, ASR_POS)
             except RuntimeError:
                 print(
@@ -412,12 +413,12 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
 
             # Report metrics every 25th batch
             if (batch_ct % 25) == 0:
-                train_log(batch_loss, example_ct, epoch)
+                train_log(batch_loss, precision, recall, example_ct, epoch)
 
             epoch_loss += batch_loss
 
         epoch_loss = epoch_loss / len(train_iterator)
-        valid_loss = evaluate(model, valid_iterator, criterion, TTX, TRG, ASR)
+        valid_loss, valid_precision, valid_recall = evaluate(model, valid_iterator, criterion, TTX, TRG, ASR)
 
         end_time = time.time()
 
@@ -433,7 +434,11 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
             f'\tTrain Loss: {epoch_loss:.3f} | Train PPL: {np.exp(epoch_loss):7.3f}')
         print(
             f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {np.exp(valid_loss):7.3f}')
-        wandb.log({"epoch": epoch, "val_loss": valid_loss})
+        wandb.log({"epoch": epoch, 
+                    "val_loss": valid_loss, 
+                    "valid_precision": valid_precision, 
+                    "valid_recall": valid_recall
+                    })
 
         if epoch - best_epoch >= config.early_stop:
             print(
@@ -490,13 +495,7 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
         print("ASR: ")
         for sentence in asr_text_out:
             print(' '.join(sentence))
-
-        # print('TRUE TEXT: ', ' '.join([TTX.vocab.itos[i] for i in ttx_src[0]]))
-        # print("TRUE TEXT POS: ", ' '.join(
-        #     [TTX_POS.vocab.itos[i] for i in ttx_pos[0]]))
-        # print('ASR VERS.: ', ' '.join([ASR.vocab.itos[i] for i in asr_src[0]]))
-        # print("ASR TEXT POS: ", ' '.join(
-        #     [ASR_POS.vocab.itos[i] for i in asr_pos[0]]))
+        
         print('TRUE TAGS: ', ' '.join([TRG.vocab.itos[i] for i in trg[0]]))
         print('MODEL OUT:  <sos>', ' '.join(
             [TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
@@ -511,12 +510,7 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     trg = trg[:, 1:].contiguous().view(-1)
 
     # Calculate the Recall, Precision and F1 Score for Deletions
-    # First, we need to find the padding token and the deletion token
-    import pdb
-    pdb.set_trace()
     precision, recall = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
-
-    wandb.log({"train_precision": precision, "train_recall": recall})
 
     # Next, we'll go ahead and copy the tensor
     output_for_recall = output.clone()
@@ -524,10 +518,6 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     # Apply the argmax function to each inner tensor in the output tensor
     # Each index will now be the predicted tag value.
     output_for_recall = torch.argmax(output_for_recall, dim=1)
-
-
-
-
 
     # output = [batch size * trg len - 1, output dim]
     # trg = [batch size * trg len - 1]
@@ -540,14 +530,14 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
 
     optimizer.step()
 
-    return loss.item()
+    return loss.item(), precision, recall
 
 
-def train_log(loss, example_ct, epoch):
+def train_log(loss, precision, recall, example_ct, epoch):
     loss = float(loss)
 
     # where the magic happens
-    wandb.log({"epoch": epoch, "loss": loss}, step=example_ct)
+    wandb.log({"epoch": epoch, "loss": loss, "train_precision": precision, "train_recall": recall}, step=example_ct)
     print(f"Loss after " + str(example_ct).zfill(5) + f" examples: {loss:.3f}")
 
 
@@ -555,6 +545,8 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
     model.eval()
 
     epoch_loss = 0
+    precision = 0
+    recall = 0
 
     with torch.no_grad():
         for i, batch in enumerate(iterator):
@@ -586,6 +578,9 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
             #             print('trg shape:',trg.shape)
             loss = criterion(output_for_scoring, trg)
 
+            # Calculate the Recall, Precision and F1 Score for Deletions
+            new_precision, new_recall = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+
             if np.random.randint(0, 40) == 1 or print_outputs:
                 print("VALIDATION OUTPUTS:")
                 print('TRUE TEXT: ', ' '.join(
@@ -596,10 +591,18 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
                     [TRG.vocab.itos[i] for i in batch.tags[0]]))
                 print('MODEL OUT:  <sos>', ' '.join(
                     [TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
+
+                print(f"Precision of Example: {new_precision}")
+                print(f"Recall of Example: {new_recall}")
                 print()
             epoch_loss += loss.item()
 
-    return epoch_loss / len(iterator)
+
+
+            precision += new_precision
+            recall += new_recall
+
+    return epoch_loss / len(iterator), precision / len(iterator), recall / len(iterator)
 
 
 def epoch_time(start_time, end_time):
@@ -612,9 +615,9 @@ def epoch_time(start_time, end_time):
 def test(model, test_iterator, criterion, TTX, TRG, ASR, model_filepath='best_model.pt'):
     model.load_state_dict(torch.load(model_filepath))
 
-    test_loss = evaluate(model, test_iterator, criterion,
+    test_loss, precision, recall = evaluate(model, test_iterator, criterion,
                          TTX, TRG, ASR, print_outputs=True)
-    wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss)})
+    wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss), "test_precision": precision, "test_recall": recall})
 
     print(
         f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
