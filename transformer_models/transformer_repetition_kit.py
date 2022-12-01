@@ -383,7 +383,7 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     cur_output = cur_output.numpy()
     # Now we can call the sklearn methods for precision, recall, with a focus
     # on the DEL label.
-    precision = 2#precision_score(cur_trg, cur_output, average='binary', pos_label=1)
+    precision = precision_score(cur_trg, cur_output, average='binary', pos_label=1)
     recall = 1#recall_score(cur_trg, cur_output, average='binary', pos_label=1)
     f1Score = 1#f1_score(cur_trg, cur_output, average='binary', pos_label=1)
     return precision, recall, f1Score
@@ -480,28 +480,32 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
         5: of
         ...
         """
-        print()
-        true_text_word_out = [TTX.vocab.itos[i] for i in ttx_src[0]]
-        true_text_pos_out = [val for val in ttx_pos[0].tolist()]
-        true_text_out = [[]]
-        for word, pos in zip(true_text_word_out, true_text_pos_out):
-            if pos == len(true_text_out):
-                true_text_out.append([])
-            true_text_out[pos].append(word)
+        # print()
+        # true_text_word_out = [TTX.vocab.itos[i] for i in ttx_src[0]]
+        # true_text_pos_out = [val for val in ttx_pos[0].tolist()]
+        # true_text_out = [[]]
+        # for word, pos in zip(true_text_word_out, true_text_pos_out):
+        #     if pos == len(true_text_out):
+        #         true_text_out.append([])
+        #     true_text_out[pos].append(word)
 
-        print("TRUE TEXT:")
-        for sentence in true_text_out:
-            print(' '.join(sentence))
+        # print("TRUE TEXT:")
+        # for sentence in true_text_out:
+        #     print(' '.join(sentence))
 
-        asr_word_out = [ASR.vocab.itos[i] for i in asr_src[0]]
-        asr_pos_out = [val for val in asr_pos[0].tolist()]
-        asr_text_out = [[]]
-        for word, pos in zip(asr_word_out, asr_pos_out):
-            if pos == len(asr_text_out):
-                asr_text_out.append(word)
-        print("ASR: ")
-        for sentence in asr_text_out:
-            print(' '.join(sentence))
+        # asr_word_out = [ASR.vocab.itos[i] for i in asr_src[0]]
+        # asr_pos_out = [val for val in asr_pos[0].tolist()]
+        # asr_text_out = [[]]
+        # for word, pos in zip(asr_word_out, asr_pos_out):
+        #     if pos == len(asr_text_out):
+        #         asr_text_out.append(word)
+        # print("ASR: ")
+        # for sentence in asr_text_out:
+        #     print(' '.join(sentence))
+        print('TRUE TEXT: ', ' '.join(
+            [TTX.vocab.itos[i] for i in ttx_src[0]]))
+        print('ASR VERS.: ', ' '.join(
+            [ASR.vocab.itos[i] for i in asr_src[0]]))
         print('TRUE TAGS: ', ' '.join([TRG.vocab.itos[i] for i in trg[0]]))
         print('MODEL OUT:  <sos>', ' '.join(
             [TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
