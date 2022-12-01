@@ -366,6 +366,8 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     # Remove all indexes where the correct label is a PAD token. We don't care
     # about these in our calculaton. Both cur_output and trg need to have the same
     # number of elements for the calculation to work.
+    import pdb
+    pdb.set_trace()
     cur_output = cur_output[cur_trg != pad_label]
     cur_trg = cur_trg[cur_trg != pad_label]
 
