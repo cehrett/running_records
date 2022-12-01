@@ -354,12 +354,14 @@ def make_model(config, device, TTX, TRG, ASR):
     return model
 
 def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label: int, pad_label: int) -> Tuple[float, float]:
-    return 1, 0, 0
+
     
     # output should be the softamx outputs of the model, and trg
     # should be the true labels. 
     cur_output = output.clone().cpu()
     cur_trg = trg.clone().cpu()
+
+    return 1, 0, 0
 
     # Get the predicted class by taking the argmax of each word
     # The model will return a list of predictions for each input token.
@@ -493,8 +495,8 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
         for sentence in true_text_out:
             print(' '.join(sentence))
 
-        asr_word_out = [TTX.vocab.itos[i] for i in ttx_src[0]]
-        asr_pos_out = [val for val in ttx_pos[0].tolist()]
+        asr_word_out = [TTX.vocab.itos[i] for i in asr_src[0]]
+        asr_pos_out = [val for val in asr_pos[0].tolist()]
         asr_text_out = [[]]
         for word, pos in zip(asr_word_out, asr_pos_out):
             if pos == len(asr_text_out):
