@@ -352,13 +352,14 @@ def make_model(config, device, TTX, TRG, ASR):
                     ASR_PAD_IDX, TRG_PAD_IDX, device).to(device)
     return model
 
-def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label: int, pad_label: int):
+def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label: int, pad_label: int) -> Tuple[float, float]:
     # output should be the softamx outputs of the model, and trg
     # should be the true labels. 
     cur_output = output.clone().cpu()
     cur_trg = trg.clone().cpu()
 
     # Get the predicted class by taking the argmax of each word
+    # The model will return a list of predictions for each input token.
     cur_output = cur_output.argmax(dim=1)
 
     # Remove all indexes where the correct label is a PAD token. We don't care
@@ -380,9 +381,9 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     # on the DEL label.
     precision = precision_score(cur_trg, cur_output, average='binary', pos_label=1)
     recall = recall_score(cur_trg, cur_output, average='binary', pos_label=1)
-    f1_score = f1_score(cur_trg, cur_output, average='binary', pos_label=1)
+    f1Score = f1_score(cur_trg, cur_output, average='binary', pos_label=1)
 
-    return precision, recall, f1_score
+    return precision, recall, f1Score
 
 
 def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS):
@@ -514,7 +515,7 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     trg = trg[:, 1:].contiguous().view(-1)
 
     # Calculate the Recall, Precision and F1 Score for Deletions
-    precision, recall, f1_score = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+    precision, recall, f1Score = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
 
     # Next, we'll go ahead and copy the tensor
     output_for_recall = output.clone()
@@ -534,14 +535,14 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
 
     optimizer.step()
 
-    return loss.item(), precision, recall, f1_score
+    return loss.item(), precision, recall, f1Score
 
 
-def train_log(loss, precision, recall, f1_score, example_ct, epoch):
+def train_log(loss, precision, recall, f1Score, example_ct, epoch):
     loss = float(loss)
 
     # where the magic happens
-    wandb.log({"epoch": epoch, "loss": loss, "train_precision": precision, "train_recall": recall, "train_f1": f1_score}, step=example_ct)
+    wandb.log({"epoch": epoch, "loss": loss, "train_precision": precision, "train_recall": recall, "train_f1": f1Score}, step=example_ct)
     print(f"Loss after " + str(example_ct).zfill(5) + f" examples: {loss:.3f}")
 
 
