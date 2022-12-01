@@ -519,7 +519,7 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     # First, we need to find the padding token and the deletion token
     import pdb
     pdb.set_trace()
-    precision, recall = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['0'])
+    precision, recall = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
 
     wandb.log({"train_precision": precision, "train_recall": recall})
 
