@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 
 from torchtext.legacy.data import Field, BucketIterator, TabularDataset
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
