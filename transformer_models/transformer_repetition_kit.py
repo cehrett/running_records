@@ -371,7 +371,6 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     cur_output = cur_output[cur_trg != pad_label]
     cur_trg = cur_trg[cur_trg != pad_label]
 
-    return 1, 0, 0
     # Now, we only care about deletions. For each value in both tensors, set the value to 
     # 1 if its a deletion, 0 otherwise
     cur_output[cur_output != del_label] = 0
@@ -380,13 +379,12 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     cur_trg[cur_trg != del_label] = 0
     cur_trg[cur_trg == del_label] = 1
     
-
     # Now we can call the sklearn methods for precision, recall, with a focus
     # on the DEL label.
     precision = precision_score(cur_trg, cur_output, average='binary', pos_label=1)
     recall = recall_score(cur_trg, cur_output, average='binary', pos_label=1)
     f1Score = f1_score(cur_trg, cur_output, average='binary', pos_label=1)
-
+    return 1, 0, 0
     return precision, recall, f1Score
 
 
@@ -501,7 +499,7 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
         for word, pos in zip(asr_word_out, asr_pos_out):
             if pos == len(asr_text_out):
                 asr_text_out.append([])
-
+        print(asr_text_out)
         print("ASR: ")
         for sentence in asr_text_out:
             print(' '.join(sentence))
