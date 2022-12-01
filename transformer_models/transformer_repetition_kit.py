@@ -24,6 +24,7 @@ from tokenizers.trainers import BpeTrainer
 from tokenizers.pre_tokenizers import Whitespace
 import pandas as pd
 import numpy as np
+import traceback
 
 
 
@@ -370,6 +371,9 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     except Exception as e:
         print("ERROR CALCULATING MASK FOR PRECISION AND RECALL")
         print(e)
+        # Print traceback
+        print(traceback.print_exc())
+
         print(cur_output.shape)
         print(cur_trg.shape)
         print(len(cur_output))
