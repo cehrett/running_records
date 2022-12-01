@@ -379,8 +379,8 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     cur_trg[cur_trg != del_label] = 0
     cur_trg[cur_trg == del_label] = 1
 
-    print(cur_trg.unique(report_counts=True))
-    print(cur_output.unique(report_counts=True))
+    print(cur_trg.unique(return_counts=True))
+    print(cur_output.unique(return_counts=True))
 
     cur_trg = cur_trg.tolist()
     cur_output = cur_output.tolist()
