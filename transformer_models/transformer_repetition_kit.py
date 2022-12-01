@@ -391,12 +391,16 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     recall = tp / (tp + fn)
     f1 = 2 * (precision * recall) / (precision + recall)
 
+    precision = precision.item()
+    recall = recall.item()
+
     # If f1 is NaN, then we have a 0/0 situation, so we will just set it to 0. This makes the reporting more friendly.
     if torch.isnan(f1):
         f1 = 0
+    else:
+        f1 = f1.item()
 
-    return precision.item(), recall.item(), f1.item()
-
+    return precision, recall, f1
 
 def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS):
     wandb.watch(model, criterion, log="all", log_freq=10)
