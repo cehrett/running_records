@@ -604,7 +604,9 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
             loss = criterion(output_for_scoring, trg)
 
             # Calculate the Recall, Precision and F1 Score for Deletions
-            new_precision, new_recall, new_f1 = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+            import pdb
+            pdb.set_trace()
+            new_precision, new_recall, new_f1 = get_precision_and_recall(output_for_scoring, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
 
             if np.random.randint(0, 40) == 1 or print_outputs:
                 print("VALIDATION OUTPUTS:")
