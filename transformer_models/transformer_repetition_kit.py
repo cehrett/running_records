@@ -365,21 +365,8 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     # Remove all indexes where the correct label is a PAD token. We don't care
     # about these in our calculaton. Both cur_output and trg need to have the same
     # number of elements for the calculation to work.
-    try:
-        cur_output = cur_output[cur_trg != pad_label]
-        cur_trg = cur_trg[cur_trg != pad_label]
-    except Exception as e:
-        print("ERROR CALCULATING MASK FOR PRECISION AND RECALL")
-        import pdb
-        pdb.set_trace()
-
-        print(cur_output.shape)
-        print(cur_trg.shape)
-        print(len(cur_output))
-        print(len(cur_trg))
-        print(cur_output)
-        print(cur_trg)
-        return 0, 0, 0
+    cur_output = cur_output[cur_trg != pad_label]
+    cur_trg = cur_trg[cur_trg != pad_label]
 
     # Now, we only care about deletions. For each value in both tensors, set the value to 
     # 1 if its a deletion, 0 otherwise
@@ -482,8 +469,9 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     # TODO is cutting off part of TRG correct?
     output, _, _ = model(ttx_src, ttx_pos, asr_src, asr_pos, trg[:, :-1])
 
+    print_debug_vals = np.random.randint(0, 40)
     # Print an example to the console, randomly
-    if np.random.randint(0, 40) == 1:
+    if print_debug_vals == 1:
         # Trying to shoot for something like
         """
         0: <sos> it
@@ -536,6 +524,11 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     # Calculate the Recall, Precision and F1 Score for Deletions
     precision, recall, f1Score = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
 
+    if print_debug_vals:
+        print('Precision: ', precision)
+        print('Recall: ', recall)
+        print('F1 Score: ', f1Score)
+    
     # Next, we'll go ahead and copy the tensor
     output_for_recall = output.clone()
 
@@ -604,8 +597,6 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
             loss = criterion(output_for_scoring, trg)
 
             # Calculate the Recall, Precision and F1 Score for Deletions
-            import pdb
-            pdb.set_trace()
             new_precision, new_recall, new_f1 = get_precision_and_recall(output_for_scoring, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
 
             if np.random.randint(0, 40) == 1 or print_outputs:
