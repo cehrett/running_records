@@ -352,8 +352,6 @@ def make_model(config, device, TTX, TRG, ASR):
     return model
 
 def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label: int, pad_label: int) -> Tuple[float, float]:
-
-    
     # output should be the softamx outputs of the model, and trg
     # should be the true labels. 
     cur_output = output.clone().cpu()
@@ -366,10 +364,19 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     # Remove all indexes where the correct label is a PAD token. We don't care
     # about these in our calculaton. Both cur_output and trg need to have the same
     # number of elements for the calculation to work.
-    import pdb
-    pdb.set_trace()
-    cur_output = cur_output[cur_trg != pad_label]
-    cur_trg = cur_trg[cur_trg != pad_label]
+    try:
+        cur_output = cur_output[cur_trg != pad_label]
+        cur_trg = cur_trg[cur_trg != pad_label]
+    except Exception as e:
+        print("ERROR CALCULATING MASK FOR PRECISION AND RECALL")
+        print(e)
+        print(cur_output.shape)
+        print(cur_trg.shape)
+        print(len(cur_output))
+        print(len(cur_trg))
+        print(cur_output)
+        print(cur_trg)
+        return 0, 0, 0
 
     # Now, we only care about deletions. For each value in both tensors, set the value to 
     # 1 if its a deletion, 0 otherwise
