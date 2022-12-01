@@ -361,12 +361,11 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     cur_output = output.clone().cpu()
     cur_trg = trg.clone().cpu()
 
-    return 1, 0, 0
-
     # Get the predicted class by taking the argmax of each word
     # The model will return a list of predictions for each input token.
     cur_output = cur_output.argmax(dim=1)
 
+    return 1, 0, 0
     # Remove all indexes where the correct label is a PAD token. We don't care
     # about these in our calculaton. Both cur_output and trg need to have the same
     # number of elements for the calculation to work.
@@ -495,7 +494,7 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
         for sentence in true_text_out:
             print(' '.join(sentence))
 
-        asr_word_out = [TTX.vocab.itos[i] for i in asr_src[0]]
+        asr_word_out = [ASR.vocab.itos[i] for i in asr_src[0]]
         asr_pos_out = [val for val in asr_pos[0].tolist()]
         asr_text_out = [[]]
         for word, pos in zip(asr_word_out, asr_pos_out):
