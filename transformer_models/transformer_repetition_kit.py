@@ -353,8 +353,6 @@ def make_model(config, device, TTX, TRG, ASR):
     return model
 
 def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label: int, pad_label: int):
-    import pdb
-    pdb.set_trace()
     # output should be the softamx outputs of the model, and trg
     # should be the true labels. 
     cur_output = output.clone().cpu()
@@ -369,15 +367,23 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     cur_output = cur_output[cur_trg != pad_label]
     cur_trg = cur_trg[cur_trg != pad_label]
 
-    # Now, we only care about deletions. For each value in both tensors, keep it the del_label
-    # if it is a del_label, and set it to 0 otherwise.
-    cur_output[cur_output != del_label] = 0
-    cur_trg[cur_trg != del_label] = 0
+    # Now, we only care about deletions. For each value in both tensors, set the value to 
+    # 1 if its a deletion, 0 otherwise
+    cur_output[cur_output != del_label] = 28
+    cur_output[cur_output == del_label] = 29
+    cur_output[cur_output == 28] = 0
+    cur_output[cur_output == 29] = 1
+
+    cur_trg[cur_trg != del_label] = 28
+    cur_trg[cur_trg == del_label] = 29
+    cur_trg[cur_trg == 28] = 0
+    cur_trg[cur_trg == 29] = 1
+    
 
     # Now we can call the sklearn methods for precision, recall, with a focus
     # on the DEL label.
-    precision = precision_score(cur_trg, cur_output, average='binary', pos_label=del_label)
-    recall = recall_score(cur_trg, cur_output, average='binary', pos_label=del_label)
+    precision = precision_score(cur_trg, cur_output, average='binary', pos_label=1)
+    recall = recall_score(cur_trg, cur_output, average='binary', pos_label=1)
 
     return precision, recall
 
@@ -511,6 +517,8 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
 
     # Calculate the Recall, Precision and F1 Score for Deletions
     # First, we need to find the padding token and the deletion token
+    import pdb
+    pdb.set_trace()
     precision, recall = get_precision_and_recall(output, trg, TRG.vocab.stoi['<del>'], TRG.vocab.stoi['<pad>'])
 
     wandb.log({"train_precision": precision, "train_recall": recall})
