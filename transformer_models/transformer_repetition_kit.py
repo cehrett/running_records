@@ -387,7 +387,7 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     recall = tp / (tp + fn)
     f1 = 2 * (precision * recall) / (precision + recall)
 
-    return precision, recall, f1
+    return precision.item(), recall.item(), f1.item()
 
 
 def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS):
@@ -524,7 +524,7 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     # Calculate the Recall, Precision and F1 Score for Deletions
     precision, recall, f1Score = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
 
-    if print_debug_vals:
+    if print_debug_vals == 1:
         print('Precision: ', precision)
         print('Recall: ', recall)
         print('F1 Score: ', f1Score)
