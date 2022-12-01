@@ -387,6 +387,10 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     recall = tp / (tp + fn)
     f1 = 2 * (precision * recall) / (precision + recall)
 
+    # If f1 is NaN, then we have a 0/0 situation, so we will just set it to 0. This makes the reporting more friendly.
+    if torch.isnan(f1):
+        f1 = 0
+
     return precision.item(), recall.item(), f1.item()
 
 
