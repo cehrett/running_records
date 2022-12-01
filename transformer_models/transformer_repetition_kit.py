@@ -382,8 +382,9 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     # Now we can call the sklearn methods for precision, recall, with a focus
     # on the DEL label.
 
-    return 1, 0, 0
     precision = precision_score(cur_trg, cur_output, average='binary', pos_label=1)
+
+    return 1, 0, 0
     recall = recall_score(cur_trg, cur_output, average='binary', pos_label=1)
     f1Score = f1_score(cur_trg, cur_output, average='binary', pos_label=1)
     return precision, recall, f1Score
@@ -496,13 +497,11 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
         asr_word_out = [ASR.vocab.itos[i] for i in asr_src[0]]
         asr_pos_out = [val for val in asr_pos[0].tolist()]
         asr_text_out = [[]]
-        print(asr_word_out, asr_pos_out)
         for word, pos in zip(asr_word_out, asr_pos_out):
             print(word)
             print(pos)
             if pos == len(asr_text_out):
-                asr_text_out.append([])
-        print(asr_text_out)
+                asr_text_out.append(word)
         print("ASR: ")
         for sentence in asr_text_out:
             print(' '.join(sentence))
