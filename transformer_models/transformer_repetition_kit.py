@@ -369,17 +369,12 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
 
     # Now, we only care about deletions. For each value in both tensors, set the value to 
     # 1 if its a deletion, 0 otherwise
-    cur_output[cur_output != del_label] = 28
-    cur_output[cur_output == del_label] = 29
-    cur_output[cur_output == 28] = 0
-    cur_output[cur_output == 29] = 1
+    cur_output[cur_output != del_label] = 0
+    cur_output[cur_output == del_label] = 1
 
-    cur_trg[cur_trg != del_label] = 28
-    cur_trg[cur_trg == del_label] = 29
-    cur_trg[cur_trg == 28] = 0
-    cur_trg[cur_trg == 29] = 1
+    cur_trg[cur_trg != del_label] = 0
+    cur_trg[cur_trg == del_label] = 1
     
-
     # Now we can call the sklearn methods for precision, recall, with a focus
     # on the DEL label.
     precision = precision_score(cur_trg, cur_output, average='binary', pos_label=1)
