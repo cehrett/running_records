@@ -381,10 +381,11 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     
     # Now we can call the sklearn methods for precision, recall, with a focus
     # on the DEL label.
+
+    return 1, 0, 0
     precision = precision_score(cur_trg, cur_output, average='binary', pos_label=1)
     recall = recall_score(cur_trg, cur_output, average='binary', pos_label=1)
     f1Score = f1_score(cur_trg, cur_output, average='binary', pos_label=1)
-    return 1, 0, 0
     return precision, recall, f1Score
 
 
