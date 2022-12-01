@@ -365,13 +365,13 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     # The model will return a list of predictions for each input token.
     cur_output = cur_output.argmax(dim=1)
 
-    return 1, 0, 0
     # Remove all indexes where the correct label is a PAD token. We don't care
     # about these in our calculaton. Both cur_output and trg need to have the same
     # number of elements for the calculation to work.
     cur_output = cur_output[cur_trg != pad_label]
     cur_trg = cur_trg[cur_trg != pad_label]
 
+    return 1, 0, 0
     # Now, we only care about deletions. For each value in both tensors, set the value to 
     # 1 if its a deletion, 0 otherwise
     cur_output[cur_output != del_label] = 0
@@ -497,6 +497,7 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
         asr_word_out = [ASR.vocab.itos[i] for i in asr_src[0]]
         asr_pos_out = [val for val in asr_pos[0].tolist()]
         asr_text_out = [[]]
+        print(asr_word_out, asr_pos_out)
         for word, pos in zip(asr_word_out, asr_pos_out):
             if pos == len(asr_text_out):
                 asr_text_out.append([])
@@ -504,7 +505,6 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
         print("ASR: ")
         for sentence in asr_text_out:
             print(' '.join(sentence))
-        
         print('TRUE TAGS: ', ' '.join([TRG.vocab.itos[i] for i in trg[0]]))
         print('MODEL OUT:  <sos>', ' '.join(
             [TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
