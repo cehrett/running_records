@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 
 from torchtext.legacy.data import Field, BucketIterator, TabularDataset
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -23,7 +24,13 @@ from tokenizers.trainers import BpeTrainer
 from tokenizers.pre_tokenizers import Whitespace
 import pandas as pd
 import numpy as np
+import traceback
 
+import socket
+
+# This enables us to be running multiple jobs in parallel and not write to the same
+# files. This helps us avoid an error where we try to avoid loading the wrong models.
+MODEL_SAVE_FILENAME = socket.gethostname().split('.')[0] + '_model.pt'
 
 def load_data(ASR_df_filepath='/home/cehrett/running_records/repetition_data_generation/data/generated_data.csv',
               train_filename='train_sentence.csv',
@@ -138,6 +145,7 @@ def tokenize_ASR(asr, tokenizer):
     else:
         return [tok.strip(punctuation) for tok in asr.split(" ") if tok not in ['.', ',', '!', '?', ';', ':', ]]
 
+
 def pos_embed(text, tokenizer=None):
     """
     Provides position info about English text
@@ -145,7 +153,7 @@ def pos_embed(text, tokenizer=None):
     if tokenizer:
         return tokenizer.encode(text).word_ids
     else:
-        return [i for i,tok in enumerate(text.split(" ")) if tok not in ['.', ',', '!', '?', ';', ':', ]]
+        return [i for i, tok in enumerate(text.split(" ")) if tok not in ['.', ',', '!', '?', ';', ':', ]]
 
 
 def produce_iterators(train_filename,
@@ -179,27 +187,27 @@ def produce_iterators(train_filename,
                 lower=False,
                 batch_first=True)
 
-    TTX_POS = Field(tokenize = lambda x: pos_embed(x, ttx_tokenizer),
-                use_vocab=False,
-                init_token=0, 
-                eos_token=0,
-                lower=False,
-                batch_first=True,
-                pad_token=0)
+    TTX_POS = Field(tokenize=lambda x: pos_embed(x, ttx_tokenizer),
+                    use_vocab=False,
+                    init_token=0,
+                    eos_token=0,
+                    lower=False,
+                    batch_first=True,
+                    pad_token=0)
 
-    ASR_POS = Field(tokenize = lambda x: pos_embed(x, asr_tokenizer),
-                use_vocab=False,
-                init_token=0,
-                eos_token=0,
-                lower=False,
-                batch_first=True,
-                pad_token=0)
+    ASR_POS = Field(tokenize=lambda x: pos_embed(x, asr_tokenizer),
+                    use_vocab=False,
+                    init_token=0,
+                    eos_token=0,
+                    lower=False,
+                    batch_first=True,
+                    pad_token=0)
 
-    fields = {'original_text': ('true_text', TTX), 
-        'err_tags': ('tags', TRG), 
-        'asr_transcript': ('asr', ASR),
-        'original_text_pos': ('true_text_pos', TTX_POS),
-        'asr_transcript_pos': ('asr_pos', ASR_POS)}
+    fields = {'original_text': ('true_text', TTX),
+              'err_tags': ('tags', TRG),
+              'asr_transcript': ('asr', ASR),
+              'original_text_pos': ('true_text_pos', TTX_POS),
+              'asr_transcript_pos': ('asr_pos', ASR_POS)}
 
     train_data, valid_data, test_data = TabularDataset.splits(
         path='./',
@@ -216,41 +224,41 @@ def produce_iterators(train_filename,
     ASR.build_vocab(train_data, min_freq=2)
 
     # Return datasets along with vocab objects for each of TTX,TRG,ASR
-    return train_data, valid_data, test_data, TTX, TRG, ASR
+    return train_data, valid_data, test_data, TTX, TRG, ASR, TTX_POS, ASR_POS
 
 
-def model_pipeline(hyperparameters,
-                   device,
+def model_pipeline(device,
                    train_data,
                    valid_data,
                    test_data,
                    TTX,
                    TRG,
-                   ASR
+                   ASR,
+                   TTX_POS,
+                   ASR_POS
                    ):
-    # tell wandb to get started
-    with wandb.init(project="running_records", entity="witw", config=hyperparameters):
-        # access all HPs through wandb.config, so logging matches execution!
-        config = wandb.config
+    # access all HPs through wandb.config, so logging matches execution!
+    config = wandb.config
 
-        # make the model, data, and optimization problem
-        model, train_iterator, valid_iterator, test_iterator, criterion, optimizer = make(config,
-                                                                                          device,
-                                                                                          train_data,
-                                                                                          valid_data,
-                                                                                          test_data,
-                                                                                          TTX,
-                                                                                          TRG,
-                                                                                          ASR
-                                                                                          )
-        #       print(model)
+    # make the model, data, and optimization problem
+    model, train_iterator, valid_iterator, test_iterator, criterion, optimizer = make(config,
+                                                                                      device,
+                                                                                      train_data,
+                                                                                      valid_data,
+                                                                                      test_data,
+                                                                                      TTX,
+                                                                                      TRG,
+                                                                                      ASR
+                                                                                      )
+    #       print(model)
 
-        # and use them to train the model
-        model, train_loss = train(
-            model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR)
+    # and use them to train the model
+    model, train_loss = train(
+        model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS)
 
-        # and test its final performance
-        model, test_loss = test(model, test_iterator, criterion, TTX, TRG, ASR)
+    # and test its final performance
+    model, test_loss = test(model, test_iterator, criterion,
+                            TTX, TRG, ASR)
 
     return model, train_loss, test_loss
 
@@ -277,7 +285,7 @@ def make(config,
 
     # Make the loss and optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
-    if config['decode_trg']:
+    if config['decode_trg']: 
         ignore_index = TRG.vocab.stoi[TRG.pad_token]
     else:
         ignore_index = TTX.vocab.stoi[TTX.pad_token]
@@ -348,8 +356,49 @@ def make_model(config, device, TTX, TRG, ASR):
                     ASR_PAD_IDX, TRG_PAD_IDX, device).to(device)
     return model
 
+def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label: int, pad_label: int) -> Tuple[float, float]:
+    # output should be the softamx outputs of the model, and trg
+    # should be the true labels. 
+    cur_output = output.clone().cpu()
+    cur_trg = trg.clone().cpu()
 
-def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR):
+    # Get the predicted class by taking the argmax of each word
+    # The model will return a list of predictions for each input token.
+    cur_output = cur_output.argmax(dim=1)
+
+    # Remove all indexes where the correct label is a PAD token. We don't care
+    # about these in our calculaton. Both cur_output and trg need to have the same
+    # number of elements for the calculation to work.
+    cur_output = cur_output[cur_trg != pad_label]
+    cur_trg = cur_trg[cur_trg != pad_label]
+
+    # Now, we only care about deletions. For each value in both tensors, set the value to 
+    # 1 if its a deletion, 0 otherwise
+    cur_output[cur_output != del_label] = 0
+    cur_output[cur_output == del_label] = 1
+
+    cur_trg[cur_trg != del_label] = 0
+    cur_trg[cur_trg == del_label] = 1
+
+    # Now we will go ahead and compute precision, recall and f1 score
+    # First, let's get the number of True Positives, False Positives, and False Negatives
+    tp = (cur_output * cur_trg).sum().float()
+    fp = ((1 - cur_trg) * cur_output).sum().float()
+    fn = (cur_trg * (1 - cur_output)).sum().float()
+
+    # Now we can compute precision, recall and f1 score
+    precision = tp / (tp + fp)
+    recall = tp / (tp + fn)
+    f1 = 2 * (precision * recall) / (precision + recall)
+
+    # If f1 is NaN, then we have a 0/0 situation, so we will just set it to 0. This makes the reporting more friendly.
+    if torch.isnan(f1):
+        f1 = 0
+
+    return precision.item(), recall.item(), f1.item()
+
+
+def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS):
     wandb.watch(model, criterion, log="all", log_freq=10)
     N_EPOCHS = config.epochs
     CLIP = config.clip
@@ -366,11 +415,10 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
         epoch_loss = 0
         batch_loss = 1e5
 
-
         for i, batch in enumerate(train_iterator):
             try:
-                batch_loss = train_batch(
-                    model, batch, optimizer, criterion, CLIP, TTX, TRG, ASR)
+                batch_loss, precision, recall, f1_score = train_batch(
+                    model, batch, optimizer, criterion, CLIP, TTX, TRG, ASR, TTX_POS, ASR_POS)
             except RuntimeError:
                 print(
                     '\nRuntimeError! Skipping this batch, using previous loss as est\n')
@@ -379,12 +427,12 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
 
             # Report metrics every 25th batch
             if (batch_ct % 25) == 0:
-                train_log(batch_loss, example_ct, epoch)
+                train_log(batch_loss, precision, recall, f1_score, example_ct, epoch)
 
             epoch_loss += batch_loss
 
         epoch_loss = epoch_loss / len(train_iterator)
-        valid_loss = evaluate(model, valid_iterator, criterion, TTX, TRG, ASR)
+        valid_loss, valid_precision, valid_recall, valid_f1 = evaluate(model, valid_iterator, criterion, TTX, TRG, ASR)
 
         end_time = time.time()
 
@@ -393,14 +441,21 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
         if valid_loss < best_valid_loss:
             best_valid_loss = valid_loss
             best_epoch = epoch
-            torch.save(model.state_dict(), 'best_model.pt')
+            torch.save(model.state_dict(), MODEL_SAVE_FILENAME)
 
         print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
         print(
             f'\tTrain Loss: {epoch_loss:.3f} | Train PPL: {np.exp(epoch_loss):7.3f}')
         print(
             f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {np.exp(valid_loss):7.3f}')
-        wandb.log({"epoch": epoch, "val_loss": valid_loss})
+        print(
+            f'\t Val. Precision: {valid_precision:.3f} |  Val. Recall: {valid_recall:.3f} |  Val. F1: {valid_f1:.3f}')
+        wandb.log({"epoch": epoch, 
+                    "val_loss": valid_loss, 
+                    "valid_precision": valid_precision, 
+                    "valid_recall": valid_recall,
+                    "valid_f1": valid_f1,
+                    })
 
         if epoch - best_epoch >= config.early_stop:
             print(
@@ -410,7 +465,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
     return model, best_valid_loss
 
 
-def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR):
+def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS, ASR_POS):
     ttx_src = batch.true_text
     asr_src = batch.asr
     trg = batch.tags
@@ -422,11 +477,45 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR):
     # TODO is cutting off part of TRG correct?
     output, _, _ = model(ttx_src, ttx_pos, asr_src, asr_pos, trg[:, :-1])
 
+    print_debug_vals = np.random.randint(0, 40)
     # Print an example to the console, randomly
-    if np.random.randint(0, 40) == 1:
-        print()
-        print('TRUE TEXT: ', ' '.join([TTX.vocab.itos[i] for i in ttx_src[0]]))
-        print('ASR VERS.: ', ' '.join([ASR.vocab.itos[i] for i in asr_src[0]]))
+    if print_debug_vals == 1:
+        # Trying to shoot for something like
+        """
+        0: <sos> it
+        1: is
+        2: a
+        3: r id ic ul ous
+        4: state
+        5: of
+        ...
+        """
+        # print()
+        # true_text_word_out = [TTX.vocab.itos[i] for i in ttx_src[0]]
+        # true_text_pos_out = [val for val in ttx_pos[0].tolist()]
+        # true_text_out = [[]]
+        # for word, pos in zip(true_text_word_out, true_text_pos_out):
+        #     if pos == len(true_text_out):
+        #         true_text_out.append([])
+        #     true_text_out[pos].append(word)
+
+        # print("TRUE TEXT:")
+        # for sentence in true_text_out:
+        #     print(' '.join(sentence))
+
+        # asr_word_out = [ASR.vocab.itos[i] for i in asr_src[0]]
+        # asr_pos_out = [val for val in asr_pos[0].tolist()]
+        # asr_text_out = [[]]
+        # for word, pos in zip(asr_word_out, asr_pos_out):
+        #     if pos == len(asr_text_out):
+        #         asr_text_out.append(word)
+        # print("ASR: ")
+        # for sentence in asr_text_out:
+        #     print(' '.join(sentence))
+        print('TRUE TEXT: ', ' '.join(
+            [TTX.vocab.itos[i] for i in ttx_src[0]]))
+        print('ASR VERS.: ', ' '.join(
+            [ASR.vocab.itos[i] for i in asr_src[0]]))
         print('TRUE TAGS: ', ' '.join([TRG.vocab.itos[i] for i in trg[0]]))
         print('MODEL OUT:  <sos>', ' '.join(
             [TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
@@ -440,6 +529,21 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR):
     output = output.contiguous().view(-1, output_dim)
     trg = trg[:, 1:].contiguous().view(-1)
 
+    # Calculate the Recall, Precision and F1 Score for Deletions
+    precision, recall, f1Score = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+
+    if print_debug_vals == 1:
+        print('Precision: ', precision)
+        print('Recall: ', recall)
+        print('F1 Score: ', f1Score)
+    
+    # Next, we'll go ahead and copy the tensor
+    output_for_recall = output.clone()
+
+    # Apply the argmax function to each inner tensor in the output tensor
+    # Each index will now be the predicted tag value.
+    output_for_recall = torch.argmax(output_for_recall, dim=1)
+
     # output = [batch size * trg len - 1, output dim]
     # trg = [batch size * trg len - 1]
 
@@ -451,14 +555,14 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR):
 
     optimizer.step()
 
-    return loss.item()
+    return loss.item(), precision, recall, f1Score
 
 
-def train_log(loss, example_ct, epoch):
+def train_log(loss, precision, recall, f1Score, example_ct, epoch):
     loss = float(loss)
 
     # where the magic happens
-    wandb.log({"epoch": epoch, "loss": loss}, step=example_ct)
+    wandb.log({"epoch": epoch, "loss": loss, "train_precision": precision, "train_recall": recall, "train_f1": f1Score}, step=example_ct)
     print(f"Loss after " + str(example_ct).zfill(5) + f" examples: {loss:.3f}")
 
 
@@ -466,6 +570,9 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
     model.eval()
 
     epoch_loss = 0
+    precision = 0
+    recall = 0
+    f1_score = 0
 
     with torch.no_grad():
         for i, batch in enumerate(iterator):
@@ -476,7 +583,8 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
             asr_pos = batch.asr_pos
 
             # TODO is cutting off part of trg correct when not decoding trg?
-            output, _, _ = model(ttx_src, ttx_pos, asr_src, asr_pos, trg[:, :-1])
+            output, _, _ = model(ttx_src, ttx_pos, asr_src,
+                                 asr_pos, trg[:, :-1])
 
             # output = [batch size, trg len - 1, output dim]
             # ttx_src = [batch size, ttx len]
@@ -496,16 +604,31 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
             #             print('trg shape:',trg.shape)
             loss = criterion(output_for_scoring, trg)
 
+            # Calculate the Recall, Precision and F1 Score for Deletions
+            new_precision, new_recall, new_f1 = get_precision_and_recall(output_for_scoring, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+
             if np.random.randint(0, 40) == 1 or print_outputs:
                 print("VALIDATION OUTPUTS:")
-                print('TRUE TEXT: ', ' '.join([TTX.vocab.itos[i] for i in ttx_src[0]]))
-                print('ASR VERS.: ', ' '.join([ASR.vocab.itos[i] for i in asr_src[0]]))
-                print('TRUE TAGS: ', ' '.join([TRG.vocab.itos[i] for i in batch.tags[0]]))
-                print('MODEL OUT:  <sos>', ' '.join([TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
-                print()
-            epoch_loss += loss.item()
+                print('TRUE TEXT: ', ' '.join(
+                    [TTX.vocab.itos[i] for i in ttx_src[0]]))
+                print('ASR VERS.: ', ' '.join(
+                    [ASR.vocab.itos[i] for i in asr_src[0]]))
+                print('TRUE TAGS: ', ' '.join(
+                    [TRG.vocab.itos[i] for i in batch.tags[0]]))
+                print('MODEL OUT:  <sos>', ' '.join(
+                    [TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
 
-    return epoch_loss / len(iterator)
+                print(f"Precision of Example: {new_precision}")
+                print(f"Recall of Example: {new_recall}")
+                print(f"F1 Score of Example: {new_f1}")
+                print()
+        
+            epoch_loss += loss.item()
+            precision += new_precision
+            recall += new_recall
+            f1_score += new_f1
+
+    return epoch_loss / len(iterator), precision / len(iterator), recall / len(iterator), f1_score / len(iterator)
 
 
 def epoch_time(start_time, end_time):
@@ -516,10 +639,11 @@ def epoch_time(start_time, end_time):
 
 
 def test(model, test_iterator, criterion, TTX, TRG, ASR, model_filepath='best_model.pt'):
-    model.load_state_dict(torch.load(model_filepath))
+    model.load_state_dict(torch.load(MODEL_SAVE_FILENAME))
 
-    test_loss = evaluate(model, test_iterator, criterion, TTX, TRG, ASR, print_outputs=True)
-    wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss)})
+    test_loss, precision, recall, f1_score = evaluate(model, test_iterator, criterion,
+                         TTX, TRG, ASR, print_outputs=True)
+    wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss), "test_precision": precision, "test_recall": recall, "test_f1": f1_score})
 
     print(
         f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
@@ -853,7 +977,7 @@ class Decoder_trg(nn.Module):
 
         batch_size = trg.shape[0]
         trg_len = trg.shape[1]
-        
+
         pos = torch.arange(0, trg_len).unsqueeze(
             0).repeat(batch_size, 1).to(self.device)
 
