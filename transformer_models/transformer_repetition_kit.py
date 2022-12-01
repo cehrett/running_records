@@ -380,8 +380,9 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     # on the DEL label.
     precision = precision_score(cur_trg, cur_output, average='binary', pos_label=1)
     recall = recall_score(cur_trg, cur_output, average='binary', pos_label=1)
+    f1_score = f1_score(cur_trg, cur_output, average='binary', pos_label=1)
 
-    return precision, recall
+    return precision, recall, f1_score
 
 
 def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS):
@@ -403,7 +404,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
 
         for i, batch in enumerate(train_iterator):
             try:
-                batch_loss, precision, recall = train_batch(
+                batch_loss, precision, recall, f1_score = train_batch(
                     model, batch, optimizer, criterion, CLIP, TTX, TRG, ASR, TTX_POS, ASR_POS)
             except RuntimeError:
                 print(
@@ -413,12 +414,12 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
 
             # Report metrics every 25th batch
             if (batch_ct % 25) == 0:
-                train_log(batch_loss, precision, recall, example_ct, epoch)
+                train_log(batch_loss, precision, recall, f1_score, example_ct, epoch)
 
             epoch_loss += batch_loss
 
         epoch_loss = epoch_loss / len(train_iterator)
-        valid_loss, valid_precision, valid_recall = evaluate(model, valid_iterator, criterion, TTX, TRG, ASR)
+        valid_loss, valid_precision, valid_recall, valid_f1 = evaluate(model, valid_iterator, criterion, TTX, TRG, ASR)
 
         end_time = time.time()
 
@@ -434,10 +435,13 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
             f'\tTrain Loss: {epoch_loss:.3f} | Train PPL: {np.exp(epoch_loss):7.3f}')
         print(
             f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {np.exp(valid_loss):7.3f}')
+        print(
+            f'\t Val. Precision: {valid_precision:.3f} |  Val. Recall: {valid_recall:.3f} |  Val. F1: {valid_f1:.3f}')
         wandb.log({"epoch": epoch, 
                     "val_loss": valid_loss, 
                     "valid_precision": valid_precision, 
-                    "valid_recall": valid_recall
+                    "valid_recall": valid_recall,
+                    "valid_f1": valid_f1,
                     })
 
         if epoch - best_epoch >= config.early_stop:
@@ -510,7 +514,7 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     trg = trg[:, 1:].contiguous().view(-1)
 
     # Calculate the Recall, Precision and F1 Score for Deletions
-    precision, recall = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+    precision, recall, f1_score = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
 
     # Next, we'll go ahead and copy the tensor
     output_for_recall = output.clone()
@@ -530,14 +534,14 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
 
     optimizer.step()
 
-    return loss.item(), precision, recall
+    return loss.item(), precision, recall, f1_score
 
 
-def train_log(loss, precision, recall, example_ct, epoch):
+def train_log(loss, precision, recall, f1_score, example_ct, epoch):
     loss = float(loss)
 
     # where the magic happens
-    wandb.log({"epoch": epoch, "loss": loss, "train_precision": precision, "train_recall": recall}, step=example_ct)
+    wandb.log({"epoch": epoch, "loss": loss, "train_precision": precision, "train_recall": recall, "train_f1": f1_score}, step=example_ct)
     print(f"Loss after " + str(example_ct).zfill(5) + f" examples: {loss:.3f}")
 
 
@@ -547,6 +551,7 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
     epoch_loss = 0
     precision = 0
     recall = 0
+    f1_score = 0
 
     with torch.no_grad():
         for i, batch in enumerate(iterator):
@@ -579,7 +584,7 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
             loss = criterion(output_for_scoring, trg)
 
             # Calculate the Recall, Precision and F1 Score for Deletions
-            new_precision, new_recall = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+            new_precision, new_recall, new_f1 = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
 
             if np.random.randint(0, 40) == 1 or print_outputs:
                 print("VALIDATION OUTPUTS:")
@@ -594,15 +599,15 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
 
                 print(f"Precision of Example: {new_precision}")
                 print(f"Recall of Example: {new_recall}")
+                print(f"F1 Score of Example: {new_f1}")
                 print()
+        
             epoch_loss += loss.item()
-
-
-
             precision += new_precision
             recall += new_recall
+            f1_score += new_f1
 
-    return epoch_loss / len(iterator), precision / len(iterator), recall / len(iterator)
+    return epoch_loss / len(iterator), precision / len(iterator), recall / len(iterator), f1_score / len(iterator)
 
 
 def epoch_time(start_time, end_time):
@@ -615,9 +620,9 @@ def epoch_time(start_time, end_time):
 def test(model, test_iterator, criterion, TTX, TRG, ASR, model_filepath='best_model.pt'):
     model.load_state_dict(torch.load(model_filepath))
 
-    test_loss, precision, recall = evaluate(model, test_iterator, criterion,
+    test_loss, precision, recall, f1_score = evaluate(model, test_iterator, criterion,
                          TTX, TRG, ASR, print_outputs=True)
-    wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss), "test_precision": precision, "test_recall": recall})
+    wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss), "test_precision": precision, "test_recall": recall, "test_f1": f1_score})
 
     print(
         f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
