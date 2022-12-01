@@ -358,8 +358,8 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     
     # output should be the softamx outputs of the model, and trg
     # should be the true labels. 
-    cur_output = output.clone().cpu().detach().numpy()
-    cur_trg = trg.clone().cpu().detach().numpy()
+    cur_output = output.clone().detach().cpu()
+    cur_trg = trg.clone().detach().cpu()
 
     # Get the predicted class by taking the argmax of each word
     # The model will return a list of predictions for each input token.
@@ -383,8 +383,6 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     # on the DEL label.
 
     precision = precision_score(cur_trg, cur_output, average='binary', pos_label=1)
-
-    return 1, 0, 0
     recall = recall_score(cur_trg, cur_output, average='binary', pos_label=1)
     f1Score = f1_score(cur_trg, cur_output, average='binary', pos_label=1)
     return precision, recall, f1Score
