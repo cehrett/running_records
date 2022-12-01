@@ -372,7 +372,7 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
         print("ERROR CALCULATING MASK FOR PRECISION AND RECALL")
         print(e)
         # Print traceback
-        print(traceback.print_tb())
+        print(traceback.print_tb(e))
 
         print(cur_output.shape)
         print(cur_trg.shape)
