@@ -25,8 +25,6 @@ from tokenizers.pre_tokenizers import Whitespace
 import pandas as pd
 import numpy as np
 
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-
 
 
 def load_data(ASR_df_filepath='/home/cehrett/running_records/repetition_data_generation/data/generated_data.csv',
@@ -379,13 +377,18 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     cur_trg[cur_trg != del_label] = 0
     cur_trg[cur_trg == del_label] = 1
 
-    # Now we can call the sklearn methods for precision, recall, with a focus
-    # on the DEL label.
-    precision_score([1, 0, 0], [0, 1, 1], average='binary', pos_label=1)
-    precision = 1#precision_score([1, 0, 0], [0, 1, 1], average='binary', pos_label=1)
-    recall = 1#recall_score(cur_trg, cur_output, average='binary', pos_label=1)
-    f1Score = 1#f1_score(cur_trg, cur_output, average='binary', pos_label=1)
-    return precision, recall, f1Score
+    # Now we will go ahead and compute precision, recall and f1 score
+    # First, let's get the number of True Positives, False Positives, and False Negatives
+    tp = (cur_output * cur_trg).sum().float()
+    fp = ((1 - cur_trg) * cur_output).sum().float()
+    fn = (cur_trg * (1 - cur_output)).sum().float()
+
+    # Now we can compute precision, recall and f1 score
+    precision = tp / (tp + fp)
+    recall = tp / (tp + fn)
+    f1 = 2 * (precision * recall) / (precision + recall)
+
+    return precision, recall, f1
 
 
 def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS):
