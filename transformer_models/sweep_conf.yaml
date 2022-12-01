@@ -1,7 +1,7 @@
 method: bayes
 metric:
-    name: test_loss
-    goal: minimize
+    name: test_f1
+    goal: maximize
 parameters:
     epochs:
         value: 256
@@ -66,4 +66,4 @@ parameters:
     decode_trg:
         value: True
     early_stop:
-        value: 20
+        value: 30
