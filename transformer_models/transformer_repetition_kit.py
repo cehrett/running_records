@@ -354,6 +354,8 @@ def make_model(config, device, TTX, TRG, ASR):
     return model
 
 def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label: int, pad_label: int) -> Tuple[float, float]:
+    return 1, 0, 0
+    
     # output should be the softamx outputs of the model, and trg
     # should be the true labels. 
     cur_output = output.clone().cpu()
