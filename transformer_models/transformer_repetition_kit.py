@@ -498,6 +498,8 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
         asr_text_out = [[]]
         print(asr_word_out, asr_pos_out)
         for word, pos in zip(asr_word_out, asr_pos_out):
+            print(word)
+            print(pos)
             if pos == len(asr_text_out):
                 asr_text_out.append([])
         print(asr_text_out)
