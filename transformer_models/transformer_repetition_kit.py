@@ -370,9 +370,8 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
         cur_trg = cur_trg[cur_trg != pad_label]
     except Exception as e:
         print("ERROR CALCULATING MASK FOR PRECISION AND RECALL")
-        print(e)
-        # Print traceback
-        print(traceback.print_tb(e))
+        import pdb
+        pdb.set_trace()
 
         print(cur_output.shape)
         print(cur_trg.shape)
