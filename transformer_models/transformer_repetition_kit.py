@@ -408,13 +408,17 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
     CLIP = config.clip
 
     # Using the sweep dictionary, set the correct default for our sweep metric.
-    if wandb.config['val_metric'] == 'loss':
+    if not wandb.config['val_metric']:
+        # Send me an alert saying I forgot to set the metric (might get annoying, discuss at 12/6 meeting). Point is to allow training to continue in the case
+        # of my first sweep that doesn't specify a metric, but the second sweep (and all following sweeps) will specify a metric.
+        wandb.alert(title=f"Invalid Validation Metric for run {wandb.run.id}" , text="The validation metric you specified is not valid. Defaulting to loss.")
+        best_valid_metric = float('inf')
+        wandb.config['val_metric'] = 'loss'
+    elif wandb.config['val_metric'] == 'loss':
         best_valid_metric = float('inf')
     elif wandb.config['val_metric'] == 'f1' or wandb.config['val_metric'] == 'precision' or wandb.config['val_metric'] == 'recall':
         best_valid_metric = float('-inf')
     else:
-        # Send me an alert saying I forgot to set the metric (might get annoying, discuss at 12/6 meeting). Point is to allow training to continue in the case
-        # of my first sweep that doesn't specify a metric, but the second sweep (and all following sweeps) will specify a metric.
         wandb.alert(title=f"Invalid Validation Metric for run {wandb.run.id}" , text="The validation metric you specified is not valid. Defaulting to loss.")
         best_valid_metric = float('inf')
         wandb.config['val_metric'] = 'loss'
