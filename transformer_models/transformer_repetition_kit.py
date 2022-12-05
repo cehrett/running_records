@@ -414,14 +414,18 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
         wandb.alert(title=f"Invalid Validation Metric for run {wandb.run.id}" , text="The validation metric you specified is not valid. Defaulting to loss.")
         best_valid_metric = float('inf')
         wandb.config['val_metric'] = 'loss'
+        metric_did_improve = lambda x, y: x < y
     elif wandb.config['val_metric'] == 'loss':
         best_valid_metric = float('inf')
+        metric_did_improve = lambda x, y: x < y
     elif wandb.config['val_metric'] == 'f1' or wandb.config['val_metric'] == 'precision' or wandb.config['val_metric'] == 'recall':
         best_valid_metric = float('-inf')
+        metric_did_improve = lambda x, y: x > y
     else:
         wandb.alert(title=f"Invalid Validation Metric for run {wandb.run.id}" , text="The validation metric you specified is not valid. Defaulting to loss.")
         best_valid_metric = float('inf')
         wandb.config['val_metric'] = 'loss'
+        metric_did_improve = lambda x, y: x < y
 
     best_epoch = 0
     example_ct = 0  # number of examples seen
@@ -468,7 +472,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
             val_metric = valid_loss
 
 
-        if val_metric < best_valid_metric:
+        if metric_did_improve(val_metric, best_valid_metric):
             best_valid_metric = val_metric
             best_epoch = epoch
             torch.save(model.state_dict(), MODEL_SAVE_FILENAME)
