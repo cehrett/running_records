@@ -3,6 +3,8 @@ metric:
     name: test_f1
     goal: maximize
 parameters:
+    val_metric:
+        value: "f1"
     epochs:
         value: 256
     batch_size:

@@ -407,7 +407,18 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
     N_EPOCHS = config.epochs
     CLIP = config.clip
 
-    best_valid_loss = float('inf')
+    # Using the sweep dictionary, set the correct default for our sweep metric.
+    if wandb.config['val_metric'] == 'loss':
+        best_valid_metric = float('inf')
+    elif wandb.config['val_metric'] == 'f1' or wandb.config['val_metric'] == 'precision' or wandb.config['val_metric'] == 'recall':
+        best_valid_metric = float('-inf')
+    else:
+        # Send me an alert saying I forgot to set the metric (might get annoying, discuss at 12/6 meeting). Point is to allow training to continue in the case
+        # of my first sweep that doesn't specify a metric, but the second sweep (and all following sweeps) will specify a metric.
+        wandb.alert(title=f"Invalid Validation Metric for run {wandb.run.id}" , text="The validation metric you specified is not valid. Defaulting to loss.")
+        best_valid_metric = float('inf')
+        wandb.config['val_metric'] = 'loss'
+
     best_epoch = 0
     example_ct = 0  # number of examples seen
     batch_ct = 0
@@ -442,8 +453,19 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
 
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
-        if valid_loss < best_valid_loss:
-            best_valid_loss = valid_loss
+        # Programatically set our validation metrics from wandb
+        if wandb.config['val_metric'] == 'precision':
+            val_metric = valid_precision
+        elif wandb.config['val_metric'] == 'recall':
+            val_metric = valid_recall
+        elif wandb.config['val_metric'] == 'f1':
+            val_metric = valid_f1
+        else:
+            val_metric = valid_loss
+
+
+        if val_metric < best_valid_metric:
+            best_valid_metric = val_metric
             best_epoch = epoch
             torch.save(model.state_dict(), MODEL_SAVE_FILENAME)
 
@@ -466,7 +488,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
                 f'No improvement in {config.early_stop} epochs. Stopping training.\n')
             break
 
-    return model, best_valid_loss
+    return model, best_valid_metric
 
 
 def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS, ASR_POS):
