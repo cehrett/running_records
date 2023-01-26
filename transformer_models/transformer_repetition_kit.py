@@ -356,7 +356,13 @@ def make_model(config, device, TTX, TRG, ASR):
                     ASR_PAD_IDX, TRG_PAD_IDX, device).to(device)
     return model
 
-def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label: int, pad_label: int) -> Tuple[float, float]:
+def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, target_label: int, pad_label: int) -> Tuple[float, float, float]:
+    """
+    This will report the precision, recall and F1 Score metrics for the output
+    given a target_label and a pad_label. The target_label is the label we are
+    interested in getting the stats for, and the pad_label is the one that represents
+    the PAD token in the output. 
+    """
     # output should be the softamx outputs of the model, and trg
     # should be the true labels. 
     cur_output = output.clone().cpu()
@@ -372,13 +378,13 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, del_label:
     cur_output = cur_output[cur_trg != pad_label]
     cur_trg = cur_trg[cur_trg != pad_label]
 
-    # Now, we only care about deletions. For each value in both tensors, set the value to 
+    # Now, we only care about the target label. For each value in both tensors, set the value to 
     # 1 if its a deletion, 0 otherwise
-    cur_output[cur_output != del_label] = 0
-    cur_output[cur_output == del_label] = 1
+    cur_output[cur_output != target_label] = 0
+    cur_output[cur_output == target_label] = 1
 
-    cur_trg[cur_trg != del_label] = 0
-    cur_trg[cur_trg == del_label] = 1
+    cur_trg[cur_trg != target_label] = 0
+    cur_trg[cur_trg == target_label] = 1
 
     # Now we will go ahead and compute precision, recall and f1 score
     # First, let's get the number of True Positives, False Positives, and False Negatives
@@ -445,6 +451,10 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
             except RuntimeError:
                 print(
                     '\nRuntimeError! Skipping this batch, using previous loss as est\n')
+                precision = np.nan
+                recall = np.nan
+                f1_score = np.nan
+                
             example_ct += len(batch)
             batch_ct += 1
 
@@ -514,38 +524,6 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     print_debug_vals = np.random.randint(0, 40)
     # Print an example to the console, randomly
     if print_debug_vals == 1:
-        # Trying to shoot for something like
-        """
-        0: <sos> it
-        1: is
-        2: a
-        3: r id ic ul ous
-        4: state
-        5: of
-        ...
-        """
-        # print()
-        # true_text_word_out = [TTX.vocab.itos[i] for i in ttx_src[0]]
-        # true_text_pos_out = [val for val in ttx_pos[0].tolist()]
-        # true_text_out = [[]]
-        # for word, pos in zip(true_text_word_out, true_text_pos_out):
-        #     if pos == len(true_text_out):
-        #         true_text_out.append([])
-        #     true_text_out[pos].append(word)
-
-        # print("TRUE TEXT:")
-        # for sentence in true_text_out:
-        #     print(' '.join(sentence))
-
-        # asr_word_out = [ASR.vocab.itos[i] for i in asr_src[0]]
-        # asr_pos_out = [val for val in asr_pos[0].tolist()]
-        # asr_text_out = [[]]
-        # for word, pos in zip(asr_word_out, asr_pos_out):
-        #     if pos == len(asr_text_out):
-        #         asr_text_out.append(word)
-        # print("ASR: ")
-        # for sentence in asr_text_out:
-        #     print(' '.join(sentence))
         print('TRUE TEXT: ', ' '.join(
             [TTX.vocab.itos[i] for i in ttx_src[0]]))
         print('ASR VERS.: ', ' '.join(
@@ -564,7 +542,7 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     trg = trg[:, 1:].contiguous().view(-1)
 
     # Calculate the Recall, Precision and F1 Score for Deletions
-    precision, recall, f1Score = get_precision_and_recall(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+    precision, recall, f1Score = get_precision_and_recall(output, trg, TRG.vocab.stoi['SUB'], TRG.vocab.stoi['<pad>'])
 
     if print_debug_vals == 1:
         print('Precision: ', precision)
