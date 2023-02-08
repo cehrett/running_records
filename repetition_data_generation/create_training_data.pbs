@@ -8,6 +8,5 @@
 source ~/.bashrc
 conda activate nemo
 cd ~/running_records/repetition_data_generation
-source ../venv/bin/activate
 python create_audio_training_data.py --input_file data/output_substitutions.csv --output_file data/sub_audio --num_samples 25000
 rm data/sub_audio_* -f
