@@ -1,9 +1,0 @@
-#PBS -N generate_25000_rows
-#PBS -l select=1:ncpus=20:mem=62gb:ngpus=1:gpu_model=v100,walltime=20:00:00
-#PBS -m abe
-#PBS -M jmdanie@clemson.edu,cehrett@clemson.edu
-#PBS -o job_stdout.txt
-#PBS -e job_stdout.txt
-cd ~/running_records/repetition_data_generation
-source generate_training_data.sh 25000
-rm ~/running_records/repetition_data_generation/data/*.wav -f

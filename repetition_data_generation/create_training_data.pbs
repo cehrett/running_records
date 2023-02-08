@@ -1,0 +1,12 @@
+#PBS -N generate_25000_rows
+#PBS -l select=1:ncpus=20:mem=62gb:ngpus=1:gpu_model=v100,walltime=24:00:00
+#PBS -m abe
+#PBS -M jmdanie@clemson.edu,cehrett@clemson.edu
+#PBS -o ~/running_records/job_stdout.txt
+#PBS -e ~/running_records/job_stderr.txt
+
+source ~/.bashrc
+cd ~/running_records/repetition_data_generation
+source ../venv/bin/activate
+python create_audio_training_data.py --input_file data/output_substitutions.csv --output_file data/sub_audio --num_samples 25000
+rm data/sub_audio_* -f

@@ -21,3 +21,4 @@ repetition_data_generation/.ipynb_checkpoints/Generate_large_dataset-checkpoint.
 .ipynb_checkpoints
 *.DS_Store
 venv*
+*.csv
