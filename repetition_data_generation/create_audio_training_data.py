@@ -41,10 +41,8 @@ if __name__ == "__main__":
     transcripts["audio_path"] = audio_paths
     transcripts["asr_transcript"] = get_asr_transcript(
         transcripts["audio_path"].to_list())
-
     transcripts.reset_index(inplace=True, drop=True)
-    new_mutated_df = transcripts.join(mutated_df)
-    new_mutated_df.to_csv(args.output_file + ".csv", index=False, mode='a')
 
-    mutated_df.drop(mutated_df.index, inplace=True)
+    # Remove the rows that we just processed from the mutated_df
+    mutated_df.drop(mutated_df.index[0:num_rows_processed], inplace=True)
     mutated_df.to_csv(args.input_file, index=False)
