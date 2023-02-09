@@ -356,9 +356,9 @@ def make_model(config, device, TTX, TRG, ASR):
                     ASR_PAD_IDX, TRG_PAD_IDX, device).to(device)
     return model
 
-def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, target_label: int, pad_label: int) -> Tuple[float, float, float]:
+def get_positives_and_negatives(output: torch.Tensor, trg: torch.Tensor, target_label: int, pad_label: int) -> Tuple[int, int, int]:
     """
-    This will report the precision, recall and F1 Score metrics for the output
+    This will report the number of true positives, false positives, and false negatives
     given a target_label and a pad_label. The target_label is the label we are
     interested in getting the stats for, and the pad_label is the one that represents
     the PAD token in the output. 
@@ -388,25 +388,16 @@ def get_precision_and_recall(output: torch.Tensor, trg: torch.Tensor, target_lab
 
     # Now we will go ahead and compute precision, recall and f1 score
     # First, let's get the number of True Positives, False Positives, and False Negatives
-    tp = (cur_output * cur_trg).sum().float()
-    fp = ((1 - cur_trg) * cur_output).sum().float()
-    fn = (cur_trg * (1 - cur_output)).sum().float()
+    tp = (cur_output * cur_trg).sum().int().item()
+    fp = ((1 - cur_trg) * cur_output).sum().int().item()
+    fn = (cur_trg * (1 - cur_output)).sum().int().item()
 
-    # Now we can compute precision, recall and f1 score
-    precision = tp / (tp + fp)
-    recall = tp / (tp + fn)
-    f1 = 2 * (precision * recall) / (precision + recall)
+    # Neccesary to obey typing rules.
+    tp = int(tp)
+    fp = int(fp)
+    fn = int(fn)
 
-    precision = precision.item()
-    recall = recall.item()
-
-    # If f1 is NaN, then we have a 0/0 situation, so we will just set it to 0. This makes the reporting more friendly.
-    if torch.isnan(f1):
-        f1 = 0
-    else:
-        f1 = f1.item()
-
-    return precision, recall, f1
+    return tp, fp, fn
 
 def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS):
     wandb.watch(model, criterion, log="all", log_freq=10)
@@ -542,7 +533,12 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     trg = trg[:, 1:].contiguous().view(-1)
 
     # Calculate the Recall, Precision and F1 Score for Deletions
-    precision, recall, f1Score = get_precision_and_recall(output, trg, TRG.vocab.stoi['SUB'], TRG.vocab.stoi['<pad>'])
+    new_tp, new_fp, new_fn = get_positives_and_negatives(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+
+    precision = new_tp / (new_tp + new_fp)
+    recall = new_tp / (new_tp + new_fn)
+    f1Score = 2 * (precision * recall) / (precision + recall)
+
 
     if print_debug_vals == 1:
         print('Precision: ', precision)
@@ -586,6 +582,10 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
     recall = 0
     f1_score = 0
 
+    tps = 0
+    fps = 0
+    fns = 0
+
     with torch.no_grad():
         for i, batch in enumerate(iterator):
             ttx_src = batch.true_text
@@ -616,8 +616,9 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
             #             print('trg shape:',trg.shape)
             loss = criterion(output_for_scoring, trg)
 
-            # Calculate the Recall, Precision and F1 Score for Deletions
-            new_precision, new_recall, new_f1 = get_precision_and_recall(output_for_scoring, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+            # Get the number of true positives, false positives, and false negatives
+            # for this batch.
+            new_tps, new_fps, new_fns = get_positives_and_negatives(output_for_scoring, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
 
             if np.random.randint(0, 40) == 1 or print_outputs:
                 print("VALIDATION OUTPUTS:")
@@ -629,18 +630,28 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
                     [TRG.vocab.itos[i] for i in batch.tags[0]]))
                 print('MODEL OUT:  <sos>', ' '.join(
                     [TRG.vocab.itos[np.argmax(i.tolist())] for i in output[0]]))
+                
+                batch_precision = new_tps / (new_tps + new_fps)
+                batch_recall = new_tps / (new_tps + new_fns)
+                batch_f1Score = 2 * (batch_precision * batch_recall) / (batch_precision + batch_recall)
 
-                print(f"Precision of Example: {new_precision}")
-                print(f"Recall of Example: {new_recall}")
-                print(f"F1 Score of Example: {new_f1}")
-                print()
+                print(f"Precision of Batch: {batch_precision}")
+                print(f"Recall of Batch: {batch_recall}")
+                print(f"F1 Score of Batch: {batch_f1Score}")
         
             epoch_loss += loss.item()
-            precision += new_precision
-            recall += new_recall
-            f1_score += new_f1
+            tps += new_tps
+            fps += new_fps
+            fns += new_fns
 
-    return epoch_loss / len(iterator), precision / len(iterator), recall / len(iterator), f1_score / len(iterator)
+    # Add together all the TPs, FPs and FNs from this batch to get our
+    # reporting metrics. These don't need to be averaged out since they're applied
+    # across the whole board.
+    precision = tps / (tps + fps)
+    recall = tps / (tps + fns)
+    f1_score = 2 * (precision * recall) / (precision + recall)
+
+    return epoch_loss / len(iterator), precision, recall, f1_score
 
 
 def epoch_time(start_time, end_time):
