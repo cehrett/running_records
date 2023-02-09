@@ -647,10 +647,14 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
                 print(f"Recall of Batch: {batch_recall.item()}")
                 print(f"F1 Score of Batch: {batch_f1Score.item()}")
         
+            new_tps = int(new_tps)
+            new_fps = int(new_fps)
+            new_fns = int(new_fns)
+
             epoch_loss += loss.item()
-            tps += int(new_tps)
-            fps += int(new_fps)
-            fns += int(new_fns)
+            tps += new_tps
+            fps += new_fps
+            fns += new_fns
 
     # Add together all the TPs, FPs and FNs from this batch to get our
     # reporting metrics. These don't need to be averaged out since they're applied
@@ -658,7 +662,7 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
     tps = torch.tensor(tps)
     fps = torch.tensor(fps)
     fns = torch.tensor(fns)
-    
+
     precision = tps / (tps + fps)
     recall = tps / (tps + fns)
     f1_score = 2 * (precision * recall) / (precision + recall)
