@@ -8,5 +8,5 @@
 source ~/.bashrc
 cd ~/running_records/transformer_models
 conda activate rr_env
-python tune_TRK_for_BPE_with_trg_decoding_DEL.py -d ../repetition_data_generation/data/medium_deletions_set.csv -m 10 -s witw/running_records/c33q9959
+python tune_TRK_for_BPE_with_trg_decoding_DEL.py -d ../repetition_data_generation/data/del_audio.csv -m 10 -s witw/running_records/c33q9959
 wandb sync --clean
