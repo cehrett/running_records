@@ -5,6 +5,7 @@ Transformer from "[Attention is All You Need](https://arxiv.org/abs/1706.03762)"
 
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 from torchtext.legacy.data import Field, BucketIterator, TabularDataset
 from typing import Tuple
@@ -356,7 +357,7 @@ def make_model(config, device, TTX, TRG, ASR):
                     ASR_PAD_IDX, TRG_PAD_IDX, device).to(device)
     return model
 
-def get_positives_and_negatives(output: torch.Tensor, trg: torch.Tensor, target_label: int, pad_label: int) -> Tuple[int, int, int]:
+def get_positives_and_negatives(output: torch.Tensor, trg: torch.Tensor, target_label: int, pad_label: int) -> Tuple[Tensor, Tensor, Tensor]:
     """
     This will report the number of true positives, false positives, and false negatives
     given a target_label and a pad_label. The target_label is the label we are
@@ -388,14 +389,9 @@ def get_positives_and_negatives(output: torch.Tensor, trg: torch.Tensor, target_
 
     # Now we will go ahead and compute precision, recall and f1 score
     # First, let's get the number of True Positives, False Positives, and False Negatives
-    tp = (cur_output * cur_trg).sum().int().item()
-    fp = ((1 - cur_trg) * cur_output).sum().int().item()
-    fn = (cur_trg * (1 - cur_output)).sum().int().item()
-
-    # Neccesary to obey typing rules.
-    tp = int(tp)
-    fp = int(fp)
-    fn = int(fn)
+    tp = (cur_output * cur_trg).sum().float()
+    fp = ((1 - cur_trg) * cur_output).sum().float()
+    fn = (cur_trg * (1 - cur_output)).sum().float()
 
     return tp, fp, fn
 
@@ -539,6 +535,14 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     recall = new_tp / (new_tp + new_fn)
     f1Score = 2 * (precision * recall) / (precision + recall)
 
+    precision = precision.item()
+    recall = recall.item()
+
+    if torch.isnan(f1Score):
+        f1Score = 0
+    else:
+        f1Score = f1Score.item()
+
 
     if print_debug_vals == 1:
         print('Precision: ', precision)
@@ -582,9 +586,9 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
     recall = 0
     f1_score = 0
 
-    tps = 0
-    fps = 0
-    fns = 0
+    tps = torch.tensor(0)
+    fps = torch.tensor(0)
+    fns = torch.tensor(0)
 
     with torch.no_grad():
         for i, batch in enumerate(iterator):
@@ -635,9 +639,13 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
                 batch_recall = new_tps / (new_tps + new_fns)
                 batch_f1Score = 2 * (batch_precision * batch_recall) / (batch_precision + batch_recall)
 
-                print(f"Precision of Batch: {batch_precision}")
-                print(f"Recall of Batch: {batch_recall}")
-                print(f"F1 Score of Batch: {batch_f1Score}")
+                print("New TPS: ", new_tps)
+                print("New FPs: ", new_fps)
+                print("New FNs: ", new_fns)
+
+                print(f"Precision of Batch: {batch_precision.item()}")
+                print(f"Recall of Batch: {batch_recall.item()}")
+                print(f"F1 Score of Batch: {batch_f1Score.item()}")
         
             epoch_loss += loss.item()
             tps += new_tps
@@ -651,7 +659,7 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
     recall = tps / (tps + fns)
     f1_score = 2 * (precision * recall) / (precision + recall)
 
-    return epoch_loss / len(iterator), precision, recall, f1_score
+    return epoch_loss / len(iterator), precision.item(), recall.item(), f1_score.item()
 
 
 def epoch_time(start_time, end_time):
