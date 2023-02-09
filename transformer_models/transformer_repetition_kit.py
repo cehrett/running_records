@@ -389,9 +389,9 @@ def get_positives_and_negatives(output: torch.Tensor, trg: torch.Tensor, target_
 
     # Now we will go ahead and compute precision, recall and f1 score
     # First, let's get the number of True Positives, False Positives, and False Negatives
-    tp = (cur_output * cur_trg).sum().float()
-    fp = ((1 - cur_trg) * cur_output).sum().float()
-    fn = (cur_trg * (1 - cur_output)).sum().float()
+    tp = (cur_output * cur_trg).sum().int()
+    fp = ((1 - cur_trg) * cur_output).sum().int()
+    fn = (cur_trg * (1 - cur_output)).sum().int()
 
     return tp, fp, fn
 
@@ -586,9 +586,9 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
     recall = 0
     f1_score = 0
 
-    tps = torch.tensor(0)
-    fps = torch.tensor(0)
-    fns = torch.tensor(0)
+    tps = 0
+    fps = 0
+    fns = 0
 
     with torch.no_grad():
         for i, batch in enumerate(iterator):
@@ -648,13 +648,17 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
                 print(f"F1 Score of Batch: {batch_f1Score.item()}")
         
             epoch_loss += loss.item()
-            tps += new_tps
-            fps += new_fps
-            fns += new_fns
+            tps += int(new_tps)
+            fps += int(new_fps)
+            fns += int(new_fns)
 
     # Add together all the TPs, FPs and FNs from this batch to get our
     # reporting metrics. These don't need to be averaged out since they're applied
     # across the whole board.
+    tps = torch.tensor(tps)
+    fps = torch.tensor(fps)
+    fns = torch.tensor(fns)
+    
     precision = tps / (tps + fps)
     recall = tps / (tps + fns)
     f1_score = 2 * (precision * recall) / (precision + recall)
