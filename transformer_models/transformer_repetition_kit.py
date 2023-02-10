@@ -435,7 +435,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
         for i, batch in enumerate(train_iterator):
             try:
                 batch_loss, precision, recall, f1_score = train_batch(
-                    model, batch, optimizer, criterion, CLIP, TTX, TRG, ASR, TTX_POS, ASR_POS)
+                    model, batch, optimizer, criterion, CLIP, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tag)
             except RuntimeError:
                 print(
                     '\nRuntimeError! Skipping this batch, using previous loss as est\n')
@@ -497,7 +497,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
     return model, best_valid_metric
 
 
-def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS, ASR_POS):
+def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tag):
     ttx_src = batch.true_text
     asr_src = batch.asr
     trg = batch.tags
@@ -530,7 +530,9 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     trg = trg[:, 1:].contiguous().view(-1)
 
     # Calculate the Recall, Precision and F1 Score for Deletions
-    new_tp, new_fp, new_fn = get_positives_and_negatives(output, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+    import pdb
+    pdb.set_trace()
+    new_tp, new_fp, new_fn = get_positives_and_negatives(output, trg, TRG.vocab.stoi[error_tag], TRG.vocab.stoi['<pad>'])
 
     precision = new_tp / (new_tp + new_fp)
     recall = new_tp / (new_tp + new_fn)
