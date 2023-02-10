@@ -530,8 +530,6 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     trg = trg[:, 1:].contiguous().view(-1)
 
     # Calculate the Recall, Precision and F1 Score for Deletions
-    import pdb
-    pdb.set_trace()
     new_tp, new_fp, new_fn = get_positives_and_negatives(output, trg, TRG.vocab.stoi[error_tag], TRG.vocab.stoi['<pad>'])
 
     precision = new_tp / (new_tp + new_fp)

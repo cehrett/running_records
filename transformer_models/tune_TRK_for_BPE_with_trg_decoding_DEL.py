@@ -54,6 +54,9 @@ def main():
         wandb.init()
         wandb.config['data'] = config['data']
 
+        import pdb
+        pdb.set_trace()
+
         # Create tokenizer
         if wandb.config['bpe']:
             tokenizer = trk.create_train_bpe_tokenizer(wandb.config['bpe_vocab_size'],
