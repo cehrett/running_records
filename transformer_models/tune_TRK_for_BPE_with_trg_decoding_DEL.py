@@ -16,6 +16,7 @@ parser = argparse.ArgumentParser(description="Use weights & biases to tune the t
 parser.add_argument("-d", "--data", help="data file path")
 parser.add_argument("-m", "--max_evals", help="number of trials")
 parser.add_argument('-s', "--sweep_id", help="Sweep ID for wandb")
+parser.add_argument('-t', "--error_tag", help="The tag we are interested in tracking. (e.g. DEL, SUB, REP)")
 args = parser.parse_args()
 config = vars(args)
 
@@ -94,7 +95,8 @@ def main():
                                                           TRG,
                                                           ASR,
                                                           TTX_POS,
-                                                          ASR_POS
+                                                          ASR_POS,
+                                                          config['error_tag']
                                                           )
 
         # Log that loss to Weights & Biases as a Summary metric.

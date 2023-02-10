@@ -236,7 +236,8 @@ def model_pipeline(device,
                    TRG,
                    ASR,
                    TTX_POS,
-                   ASR_POS
+                   ASR_POS,
+                   error_tag
                    ):
     # access all HPs through wandb.config, so logging matches execution!
     config = wandb.config
@@ -255,11 +256,11 @@ def model_pipeline(device,
 
     # and use them to train the model
     model, train_loss = train(
-        model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS)
+        model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tag)
 
     # and test its final performance
     model, test_loss = test(model, test_iterator, criterion,
-                            TTX, TRG, ASR)
+                            TTX, TRG, ASR, error_tag)
 
     return model, train_loss, test_loss
 
@@ -395,7 +396,7 @@ def get_positives_and_negatives(output: torch.Tensor, trg: torch.Tensor, target_
 
     return tp, fp, fn
 
-def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS):
+def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tag):
     wandb.watch(model, criterion, log="all", log_freq=10)
     N_EPOCHS = config.epochs
     CLIP = config.clip
@@ -452,7 +453,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
             epoch_loss += batch_loss
 
         epoch_loss = epoch_loss / len(train_iterator)
-        valid_loss, valid_precision, valid_recall, valid_f1 = evaluate(model, valid_iterator, criterion, TTX, TRG, ASR)
+        valid_loss, valid_precision, valid_recall, valid_f1 = evaluate(model, valid_iterator, criterion, TTX, TRG, ASR, error_tag)
 
         end_time = time.time()
 
@@ -578,7 +579,7 @@ def train_log(loss, precision, recall, f1Score, example_ct, epoch):
     print(f"Loss after " + str(example_ct).zfill(5) + f" examples: {loss:.3f}")
 
 
-def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
+def evaluate(model, iterator, criterion, TTX, TRG, ASR, error_tag, print_outputs=False):
     model.eval()
 
     epoch_loss = 0
@@ -622,7 +623,7 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, print_outputs=False):
 
             # Get the number of true positives, false positives, and false negatives
             # for this batch.
-            new_tps, new_fps, new_fns = get_positives_and_negatives(output_for_scoring, trg, TRG.vocab.stoi['-'], TRG.vocab.stoi['<pad>'])
+            new_tps, new_fps, new_fns = get_positives_and_negatives(output_for_scoring, trg, TRG.vocab.stoi[error_tag], TRG.vocab.stoi['<pad>'])
 
             if np.random.randint(0, 40) == 1 or print_outputs:
                 print("VALIDATION OUTPUTS:")
@@ -677,11 +678,11 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-def test(model, test_iterator, criterion, TTX, TRG, ASR, model_filepath='best_model.pt'):
+def test(model, test_iterator, criterion, TTX, TRG, ASR, error_tag, model_filepath='best_model.pt'):
     model.load_state_dict(torch.load(MODEL_SAVE_FILENAME))
 
     test_loss, precision, recall, f1_score = evaluate(model, test_iterator, criterion,
-                         TTX, TRG, ASR, print_outputs=True)
+                         TTX, TRG, ASR, error_tag, print_outputs=True)
     wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss), "test_precision": precision, "test_recall": recall, "test_f1": f1_score})
 
     print(
