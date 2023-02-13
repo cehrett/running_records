@@ -1,4 +1,4 @@
-#PBS -N train_rr_model
+#PBS -N train_sub_model
 #PBS -l select=1:ncpus=40:mem=62gb:ngpus=1:gpu_model=v100,walltime=48:00:00
 #PBS -m abe
 #PBS -M jmdanie@clemson.edu
