@@ -20,24 +20,6 @@ config = vars(args)
 # Set number of evals that we can perform
 max_evals = int(config['max_evals'])
 
-# Set filepaths. We will create temporary files to store the data. This also allows
-# us to train on different hosts.
-ASR_df_filepath = config['data']
-asr_text_file = NamedTemporaryFile(mode='w', prefix='asr', suffix='.txt', delete=True, dir='temp_data')
-ttx_text_file = NamedTemporaryFile(mode='w', prefix='ttx', suffix='.txt', delete=True, dir='temp_data')
-train_file = NamedTemporaryFile(mode='w', prefix='train_sentence', suffix='.csv', delete=True, dir='temp_data')
-valid_file = NamedTemporaryFile(mode='w', prefix='valid_sentence', suffix='.csv', delete=True, dir='temp_data')
-test_file = NamedTemporaryFile(mode='w', prefix='test_sentence', suffix='.csv', delete=True, dir='temp_data')
-
-# Load data
-trk.load_data(ASR_df_filepath=ASR_df_filepath,
-              train_filename=train_file.name,
-              valid_filename=valid_file.name,
-              test_filename=test_file.name,
-              asr_text_filepath=asr_text_file.name,
-              ttx_text_filepath=ttx_text_file.name)
-
-
 def lcm(a, b):
     return abs(a*b) // gcd(a, b)
 
@@ -51,6 +33,23 @@ def main():
         wandb.init()
         wandb.config['data'] = config['data']
         wandb.config['error_tag'] = config['error_tag']
+
+        # Set filepaths. We will create temporary files to store the data. This also allows
+        # us to train on different hosts.
+        ASR_df_filepath = config['data']
+        asr_text_file = NamedTemporaryFile(mode='w', prefix='asr', suffix='.txt', delete=True, dir='temp_data')
+        ttx_text_file = NamedTemporaryFile(mode='w', prefix='ttx', suffix='.txt', delete=True, dir='temp_data')
+        train_file = NamedTemporaryFile(mode='w', prefix='train_sentence', suffix='.csv', delete=True, dir='temp_data')
+        valid_file = NamedTemporaryFile(mode='w', prefix='valid_sentence', suffix='.csv', delete=True, dir='temp_data')
+        test_file = NamedTemporaryFile(mode='w', prefix='test_sentence', suffix='.csv', delete=True, dir='temp_data')
+
+        # Load data
+        trk.load_data(ASR_df_filepath=ASR_df_filepath,
+                    train_filename=train_file.name,
+                    valid_filename=valid_file.name,
+                    test_filename=test_file.name,
+                    asr_text_filepath=asr_text_file.name,
+                    ttx_text_filepath=ttx_text_file.name)
 
         # Create tokenizer
         if wandb.config['bpe']:
