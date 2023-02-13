@@ -2,8 +2,8 @@
 #PBS -l select=1:ncpus=20:mem=62gb:ngpus=1:gpu_model=v100,walltime=24:00:00
 #PBS -m abe
 #PBS -M jmdanie@clemson.edu,cehrett@clemson.edu
-#PBS -o ~/running_records/job_stdout.txt
-#PBS -e ~/running_records/job_stderr.txt
+#PBS -o job_data_gen_out.txt
+#PBS -e job_data_gen_err.txt
 
 source ~/.bashrc
 conda activate nemo
