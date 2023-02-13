@@ -426,6 +426,11 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
     example_ct = 0  # number of examples seen
     batch_ct = 0
 
+    # Bug Fix: Basically there's a bug where if the model never acheives an F1 Score, it won't save the model. This results
+    # in Wandb marking the model as a failure. This workaround ensures that when we get to the test phase, we have something
+    # that runs.
+    torch.save(model.state_dict(), MODEL_SAVE_FILENAME)
+
     for epoch in range(N_EPOCHS):
 
         start_time = time.time()
