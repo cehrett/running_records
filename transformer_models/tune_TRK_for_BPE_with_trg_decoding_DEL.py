@@ -71,13 +71,12 @@ def main():
                                                                                                    ttx_tokenizer=tokenizer
                                                                                                    )
 
-        # Close our Files. This should also delete them.
+        # Close the temporary files I created earlier
         train_file.close()
         valid_file.close()
         test_file.close()
         asr_text_file.close()
         ttx_text_file.close()
-
 
         # Test out the tokenizer
         if wandb.config['bpe']:

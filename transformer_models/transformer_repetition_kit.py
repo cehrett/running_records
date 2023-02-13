@@ -135,7 +135,7 @@ def tokenize_TRG(tags):
     Tokenizes string representation of array into list of strings
     """
     tags = tags[1:-1]
-    return [tag[1] for tag in tags.split(" ")]
+    return [tag.strip(" '") for tag in tags.split(',')]
 
 
 def tokenize_ASR(asr, tokenizer):
@@ -679,12 +679,16 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-def test(model, test_iterator, criterion, TTX, TRG, ASR, error_tag, model_filepath='best_model.pt'):
-    model.load_state_dict(torch.load(MODEL_SAVE_FILENAME))
+def test(model, test_iterator, criterion, TTX, TRG, ASR, error_tag, model_filepath=MODEL_SAVE_FILENAME):
+    model.load_state_dict(torch.load(model_filepath))
 
     test_loss, precision, recall, f1_score = evaluate(model, test_iterator, criterion,
                          TTX, TRG, ASR, error_tag, print_outputs=True)
     wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss), "test_precision": precision, "test_recall": recall, "test_f1": f1_score})
+
+    artifact = wandb.Artifact('best_model', type='model')
+    artifact.add_file(model_filepath)
+    wandb.log_artifact(artifact)
 
     print(
         f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
