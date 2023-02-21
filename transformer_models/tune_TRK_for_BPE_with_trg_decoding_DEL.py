@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(description="Use weights & biases to tune the t
 parser.add_argument("-d", "--data", help="data file path", required=True)
 parser.add_argument("-m", "--max_evals", help="number of trials", required=True)
 parser.add_argument('-s', "--sweep_id", help="Sweep ID for wandb", required=True)
-parser.add_argument('-t', "--error_tag", help="The tag we are interested in tracking. (e.g. -, S, REP)", required=True)
+parser.add_argument('-t', "--error_tag", help="The tag we are interested in tracking. (e.g. -, S, REP)", required=True, nargs='+')
 args = parser.parse_args()
 config = vars(args)
 

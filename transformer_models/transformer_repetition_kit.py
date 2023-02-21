@@ -27,6 +27,8 @@ import pandas as pd
 import numpy as np
 import traceback
 
+from typing import List, Union
+
 import socket
 
 # This enables us to be running multiple jobs in parallel and not write to the same
@@ -238,7 +240,7 @@ def model_pipeline(device,
                    ASR,
                    TTX_POS,
                    ASR_POS,
-                   error_tag
+                   error_tags
                    ):
     # access all HPs through wandb.config, so logging matches execution!
     config = wandb.config
@@ -257,11 +259,11 @@ def model_pipeline(device,
 
     # and use them to train the model
     model, train_loss = train(
-        model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tag)
+        model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tags)
 
     # and test its final performance
     model, test_loss = test(model, test_iterator, criterion,
-                            TTX, TRG, ASR, error_tag)
+                            TTX, TRG, ASR, error_tags)
 
     return model, train_loss, test_loss
 
@@ -366,6 +368,7 @@ def get_positives_and_negatives(output: torch.Tensor, trg: torch.Tensor, target_
     interested in getting the stats for, and the pad_label is the one that represents
     the PAD token in the output. 
     """
+
     # output should be the softamx outputs of the model, and trg
     # should be the true labels. 
     cur_output = output.clone().cpu()
@@ -382,7 +385,7 @@ def get_positives_and_negatives(output: torch.Tensor, trg: torch.Tensor, target_
     cur_trg = cur_trg[cur_trg != pad_label]
 
     # Now, we only care about the target label. For each value in both tensors, set the value to 
-    # 1 if its a deletion, 0 otherwise
+    # 1 if its one of the target labels, 0 otherwise.
     cur_output[cur_output != target_label] = 0
     cur_output[cur_output == target_label] = 1
 
@@ -397,7 +400,7 @@ def get_positives_and_negatives(output: torch.Tensor, trg: torch.Tensor, target_
 
     return tp, fp, fn
 
-def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tag):
+def train(model, train_iterator, valid_iterator, criterion, optimizer, config, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tags):
     wandb.watch(model, criterion, log="all", log_freq=10)
     N_EPOCHS = config.epochs
     CLIP = config.clip
@@ -441,7 +444,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
         for i, batch in enumerate(train_iterator):
             try:
                 batch_loss, precision, recall, f1_score = train_batch(
-                    model, batch, optimizer, criterion, CLIP, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tag)
+                    model, batch, optimizer, criterion, CLIP, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tags)
             except RuntimeError:
                 print(
                     '\nRuntimeError! Skipping this batch, using previous loss as est\n')
@@ -459,7 +462,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
             epoch_loss += batch_loss
 
         epoch_loss = epoch_loss / len(train_iterator)
-        valid_loss, valid_precision, valid_recall, valid_f1 = evaluate(model, valid_iterator, criterion, TTX, TRG, ASR, error_tag)
+        valid_loss, valid_precision, valid_recall, valid_f1 = evaluate(model, valid_iterator, criterion, TTX, TRG, ASR, error_tags)
 
         end_time = time.time()
 
@@ -503,7 +506,7 @@ def train(model, train_iterator, valid_iterator, criterion, optimizer, config, T
     return model, best_valid_metric
 
 
-def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tag):
+def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS, ASR_POS, error_tags: List[int]):
     ttx_src = batch.true_text
     asr_src = batch.asr
     trg = batch.tags
@@ -536,10 +539,22 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     trg = trg[:, 1:].contiguous().view(-1)
 
     # Calculate the Recall, Precision and F1 Score for Deletions
-    new_tp, new_fp, new_fn = get_positives_and_negatives(output, trg, TRG.vocab.stoi[error_tag], TRG.vocab.stoi['<pad>'])
+    total_tp = 0
+    total_fp = 0
+    total_fn = 0
+    for tag in error_tags:
+        new_tp, new_fp, new_fn = get_positives_and_negatives(output, trg, TRG.vocab.stoi[tag], TRG.vocab.stoi['<pad>'])
 
-    precision = new_tp / (new_tp + new_fp)
-    recall = new_tp / (new_tp + new_fn)
+        total_tp += int(new_tp)
+        total_fp += int(new_fp)
+        total_fn += int(new_fn)
+
+    total_tp = torch.tensor(total_tp)
+    total_fp = torch.tensor(total_fp)
+    total_fn = torch.tensor(total_fn)
+
+    precision = total_tp / (total_tp + total_fp)
+    recall = total_tp / (total_tp + total_fn)
     f1Score = 2 * (precision * recall) / (precision + recall)
 
     precision = precision.item()
@@ -585,7 +600,7 @@ def train_log(loss, precision, recall, f1Score, example_ct, epoch):
     print(f"Loss after " + str(example_ct).zfill(5) + f" examples: {loss:.3f}")
 
 
-def evaluate(model, iterator, criterion, TTX, TRG, ASR, error_tag, print_outputs=False):
+def evaluate(model, iterator, criterion, TTX, TRG, ASR, error_tags: List[int], print_outputs=False):
     model.eval()
 
     epoch_loss = 0
@@ -629,7 +644,16 @@ def evaluate(model, iterator, criterion, TTX, TRG, ASR, error_tag, print_outputs
 
             # Get the number of true positives, false positives, and false negatives
             # for this batch.
-            new_tps, new_fps, new_fns = get_positives_and_negatives(output_for_scoring, trg, TRG.vocab.stoi[error_tag], TRG.vocab.stoi['<pad>'])
+            new_tps = torch.tensor(0)
+            new_fps = torch.tensor(0)
+            new_fns = torch.tensor(0)
+
+            for error_tag in error_tags:
+                tag_tps, tag_fps, tag_fns = get_positives_and_negatives(output_for_scoring, trg, TRG.vocab.stoi[error_tag], TRG.vocab.stoi['<pad>'])
+
+                new_tps += tag_tps
+                new_fps += tag_fps
+                new_fns += tag_fns
 
             if np.random.randint(0, 40) == 1 or print_outputs:
                 print("VALIDATION OUTPUTS:")
@@ -684,11 +708,11 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-def test(model, test_iterator, criterion, TTX, TRG, ASR, error_tag, model_filepath=MODEL_SAVE_FILENAME):
+def test(model, test_iterator, criterion, TTX, TRG, ASR, error_tags, model_filepath=MODEL_SAVE_FILENAME):
     model.load_state_dict(torch.load(model_filepath))
 
     test_loss, precision, recall, f1_score = evaluate(model, test_iterator, criterion,
-                         TTX, TRG, ASR, error_tag, print_outputs=True)
+                         TTX, TRG, ASR, error_tags, print_outputs=True)
     wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss), "test_precision": precision, "test_recall": recall, "test_f1": f1_score})
 
     artifact = wandb.Artifact('best_model', type='model')
