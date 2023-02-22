@@ -286,6 +286,7 @@ def make(config,
     # Make the model
     model = make_model(config, device, TTX, TRG, ASR)
     print(f'The model has {count_parameters(model):,} trainable parameters')
+    wandb.summary['trainable_parameters'] = count_parameters(model)
     model.apply(initialize_weights)
 
     # Make the loss and optimizer
@@ -383,6 +384,8 @@ def get_positives_and_negatives(output: torch.Tensor, trg: torch.Tensor, target_
     # number of elements for the calculation to work.
     cur_output = cur_output[cur_trg != pad_label]
     cur_trg = cur_trg[cur_trg != pad_label]
+
+
 
     # Now, we only care about the target label. For each value in both tensors, set the value to 
     # 1 if its one of the target labels, 0 otherwise.
@@ -538,10 +541,11 @@ def train_batch(model, batch, optimizer, criterion, clip, TTX, TRG, ASR, TTX_POS
     output = output.contiguous().view(-1, output_dim)
     trg = trg[:, 1:].contiguous().view(-1)
 
-    # Calculate the Recall, Precision and F1 Score for Deletions
+    # Calculate the Recall, Precision and F1 Score for our error tags.
     total_tp = 0
     total_fp = 0
     total_fn = 0
+
     for tag in error_tags:
         new_tp, new_fp, new_fn = get_positives_and_negatives(output, trg, TRG.vocab.stoi[tag], TRG.vocab.stoi['<pad>'])
 
