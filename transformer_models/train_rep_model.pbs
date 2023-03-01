@@ -8,9 +8,4 @@
 source ~/.bashrc
 cd ~/running_records/transformer_models
 conda activate rr_env
-for VARIABLE in 1 2 3 4 5 .. 10
-do
-	echo "New Run"
-	python tune_TRK_for_BPE_with_trg_decoding_DEL.py -d ../repetition_data_generation/data/rep_audio.csv -m 2 -s witw/running_records/cycheugx -t RB2 RI2
-	wandb sync --clean --clean-old-hours 2 --clean-force
-done
+python tune_TRK_for_BPE_with_trg_decoding_DEL.py -d ../repetition_data_generation/data/rep_audio.csv -m 10 -s witw/running_records/cycheugx -t RB2 RI2
