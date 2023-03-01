@@ -6,6 +6,9 @@ import traceback
 import sys
 import argparse
 from tempfile import NamedTemporaryFile
+from pathlib import Path
+
+SCRATCH_DIR = Path('/scratch1/jmdanie')
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="Use weights & biases to tune the transformer model.",
@@ -30,18 +33,20 @@ def main():
     our hyperparamters, results, and suggest new hyperparemeters.
     """
     try:
-        wandb.init()
+        wandb.init(dir=SCRATCH_DIR.joinpath('wandb'))
         wandb.config['data'] = config['data']
         wandb.config['error_tag'] = config['error_tag']
 
         # Set filepaths. We will create temporary files to store the data. This also allows
         # us to train on different hosts.
+        temp_dir = SCRATCH_DIR.joinpath('temp_data')
+
         ASR_df_filepath = config['data']
-        asr_text_file = NamedTemporaryFile(mode='w', prefix='asr', suffix='.txt', delete=True, dir='temp_data')
-        ttx_text_file = NamedTemporaryFile(mode='w', prefix='ttx', suffix='.txt', delete=True, dir='temp_data')
-        train_file = NamedTemporaryFile(mode='w', prefix='train_sentence', suffix='.csv', delete=True, dir='temp_data')
-        valid_file = NamedTemporaryFile(mode='w', prefix='valid_sentence', suffix='.csv', delete=True, dir='temp_data')
-        test_file = NamedTemporaryFile(mode='w', prefix='test_sentence', suffix='.csv', delete=True, dir='temp_data')
+        asr_text_file = NamedTemporaryFile(mode='w', prefix='asr', suffix='.txt', delete=True, dir=temp_dir)
+        ttx_text_file = NamedTemporaryFile(mode='w', prefix='ttx', suffix='.txt', delete=True, dir=temp_dir)
+        train_file = NamedTemporaryFile(mode='w', prefix='train_sentence', suffix='.csv', delete=True, dir=temp_dir)
+        valid_file = NamedTemporaryFile(mode='w', prefix='valid_sentence', suffix='.csv', delete=True, dir=temp_dir)
+        test_file = NamedTemporaryFile(mode='w', prefix='test_sentence', suffix='.csv', delete=True, dir=temp_dir)
 
         # Load data
         trk.load_data(ASR_df_filepath=ASR_df_filepath,
