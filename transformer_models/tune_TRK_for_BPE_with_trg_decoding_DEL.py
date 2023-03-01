@@ -33,7 +33,7 @@ def main():
     our hyperparamters, results, and suggest new hyperparemeters.
     """
     try:
-        wandb.init(dir=SCRATCH_DIR.joinpath('wandb'))
+        wandb.init(dir=SCRATCH_DIR)
         wandb.config['data'] = config['data']
         wandb.config['error_tag'] = config['error_tag']
 
