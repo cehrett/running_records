@@ -39,7 +39,7 @@ def main():
 
         # Set filepaths. We will create temporary files to store the data. This also allows
         # us to train on different hosts.
-        temp_dir = SCRATCH_DIR.joinpath('temp_data')
+        temp_dir = SCRATCH_DIR.joinpath('temp_data').mkdir(parents=False, exist_ok=True)
 
         ASR_df_filepath = config['data']
         asr_text_file = NamedTemporaryFile(mode='w', prefix='asr', suffix='.txt', delete=True, dir=temp_dir)
