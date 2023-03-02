@@ -1,0 +1,11 @@
+#PBS -N update_model_counts_in_wandb
+#PBS -l select=1:ncpus=16:mem=15gb,walltime=24:00:00
+#PBS -m abe
+#PBS -M jmdanie@clemson.edu
+#PBS -o job_update_counts_out.txt
+#PBS -e job_update_counts_err.txt
+
+source ~/.bashrc
+cd ~/running_records/transformer_models
+conda activate rr_env
+python evaluate_models.py
