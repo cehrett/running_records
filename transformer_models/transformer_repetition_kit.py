@@ -719,6 +719,11 @@ def test(model, test_iterator, criterion, TTX, TRG, ASR, error_tags, model_filep
                          TTX, TRG, ASR, error_tags, print_outputs=True)
     wandb.log({"test_loss": test_loss, "test_ppl": math.exp(test_loss), "test_precision": precision, "test_recall": recall, "test_f1": f1_score})
 
+    for error_tag in error_tags:
+        _, tag_precision, tag_recall, tag_f1_score = evaluate(model, test_iterator, criterion,
+                                TTX, TRG, ASR, [error_tag], print_outputs=False)
+        wandb.log({"test_" + error_tag + "_precision": tag_precision, "test_" + error_tag + "_recall": tag_recall, "test_" + error_tag + "_f1": tag_f1_score})
+
     artifact = wandb.Artifact('best_model', type='model')
     artifact.add_file(model_filepath)
     wandb.log_artifact(artifact)
