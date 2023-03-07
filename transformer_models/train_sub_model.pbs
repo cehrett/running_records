@@ -1,5 +1,5 @@
 #PBS -N train_sub_model
-#PBS -l select=1:ncpus=40:mem=62gb:ngpus=1:gpu_model=v100,walltime=48:00:00
+#PBS -l select=1:ncpus=40:mem=62gb:ngpus=1:gpu_model=v100,walltime=72:00:00
 #PBS -m abe
 #PBS -M jmdanie@clemson.edu
 #PBS -o sub_stdout1.txt
