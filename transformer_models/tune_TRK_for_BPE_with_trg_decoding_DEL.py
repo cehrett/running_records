@@ -44,15 +44,18 @@ def main(run_config=None):
             wandb.init(dir=SCRATCH_DIR, tags=["individual_tags_applied"])
             wandb.config['data'] = config['data']
             wandb.config['error_tag'] = config['error_tag']
+            print("SWEEP")
         else:
             # Config is passed in from the file.
             wandb.init(dir=SCRATCH_DIR, config=config, tags=["individual_tags_applied"])
+            print("RUN")
 
 
         # Set filepaths. We will create temporary files to store the data. This also allows
         # us to train on different hosts.
         temp_dir = SCRATCH_DIR.joinpath('temp_data').mkdir(parents=False, exist_ok=True)
 
+        print(wandb.config['data'])
         ASR_df_filepath = wandb.config['data']
         asr_text_file = NamedTemporaryFile(mode='w', prefix='asr', suffix='.txt', delete=True, dir=temp_dir)
         ttx_text_file = NamedTemporaryFile(mode='w', prefix='ttx', suffix='.txt', delete=True, dir=temp_dir)
