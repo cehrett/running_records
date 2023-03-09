@@ -2,8 +2,8 @@
 #PBS -l select=1:ncpus=40:mem=62gb:ngpus=1:gpu_model=v100,walltime=72:00:00
 #PBS -m abe
 #PBS -M jmdanie@clemson.edu
-#PBS -o rep_stdout1.txt
-#PBS -e rep_stderr1.txt
+#PBS -o targeted_run_stdout1.txt
+#PBS -e targeted_run_stderr1.txt
 
 source ~/.bashrc
 cd ~/running_records/transformer_models
