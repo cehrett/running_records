@@ -48,7 +48,7 @@ def main(run_config=None):
         else:
             # Config is passed in from the file.
             wandb.init(dir=SCRATCH_DIR, config=run_config, tags=["individual_tags_applied"])
-            
+
             print("RUN")
 
 
@@ -97,7 +97,7 @@ def main(run_config=None):
         test_file.close()
         asr_text_file.close()
         ttx_text_file.close()
-
+        print("Data loaded and tokenized.")
         # Test out the tokenizer
         if wandb.config['bpe']:
             output = tokenizer.encode("Hello, y'all! How are you 😁 ? [WSP]")
@@ -120,7 +120,7 @@ def main(run_config=None):
                                                           ASR,
                                                           TTX_POS,
                                                           ASR_POS,
-                                                          config['error_tag']
+                                                          wandb.config['error_tag']
                                                           )
 
         # Log that loss to Weights & Biases as a Summary metric.
