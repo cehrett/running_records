@@ -47,7 +47,8 @@ def main(run_config=None):
             print("SWEEP")
         else:
             # Config is passed in from the file.
-            wandb.init(dir=SCRATCH_DIR, config=config, tags=["individual_tags_applied"])
+            wandb.init(dir=SCRATCH_DIR, config=run_config, tags=["individual_tags_applied"])
+            
             print("RUN")
 
 
@@ -134,6 +135,7 @@ def main(run_config=None):
 
 
 if __name__ == '__main__':
+    print(config)
     if config['sweep_id']:
         wandb.agent(config['sweep_id'], function=main, count=max_evals,
                     project="running_records", entity="witw")
