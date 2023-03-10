@@ -47,7 +47,7 @@ def main(run_config=None):
             print("SWEEP")
         else:
             # Config is passed in from the file.
-            wandb.init(dir=SCRATCH_DIR, config=run_config, tags=["individual_tags_applied"])
+            wandb.init(dir=SCRATCH_DIR, config=run_config, tags=["individual_tags_applied"], project="running_records", entity="witw")
 
             print("RUN")
 
