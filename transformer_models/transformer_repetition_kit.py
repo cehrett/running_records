@@ -240,10 +240,9 @@ def model_pipeline(device,
                    ASR,
                    TTX_POS,
                    ASR_POS,
-                   error_tags
+                   error_tags,
+                   config=wandb.config
                    ):
-    # access all HPs through wandb.config, so logging matches execution!
-    config = wandb.config
 
     # make the model, data, and optimization problem
     model, train_iterator, valid_iterator, test_iterator, criterion, optimizer = make(config,

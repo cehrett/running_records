@@ -17,27 +17,75 @@ parameters:
     batch_size:
         value: 64
     learning_rate:
-        value: 0.00045165055937489
+        parameters:
+            SUB:
+                value: 0.00029720928519494594
+            REP:
+                value: 0.00045165055937489
+            DEL:
+                value: 0.000527372316961992
     enc_layers:
-        value: 4
+        parameters:
+            SUB:
+                value: 3
+            REP:
+                value: 4
+            DEL:
+                value: 3
     dec_layers:
-        value: 3
+        parameters:
+            SUB:
+                value: 3
+            REP:
+                value: 3
+            DEL:
+                value: 2
     enc_heads:
         distribution: q_uniform
         min: 2
         max: 12
         q: 2
     dec_heads:
-        value: 6
+        parameters:
+            SUB:
+                value: 6
+            REP:
+                value: 6
+            DEL:
+                value: 12
     enc_pf_dim:
-        value: 80
+        parameters:
+            SUB:
+                value: 80
+            REP:
+                value: 80
+            DEL:
+                value: 240
     dec_pf_dim:
-        value: 40
+        parameters:
+            SUB:
+                value: 720
+            REP:
+                value: 40
+            DEL:
+                value: 40
     enc_dropout:
-        value: 0.14212758084066657
+        parameters:
+            SUB:
+                value: 0.06742411219665648
+            REP:
+                value: 0.14212758084066657
+            DEL:
+                value: 0.08897067871999473
     dec_dropout:
-        value: 0.023742063103977713
-    best_hid_dim:
+        parameters:
+            SUB:
+                value: 0.036984241673061344
+            REP:
+                value: 0.023742063103977713
+            DEL:
+                value: 0.02501199966397636
+    hid_dim:
         parameters:
             SUB:
                 value: 240
@@ -50,7 +98,13 @@ parameters:
     bpe:
         value: True
     bpe_vocab_size:
-        value: 600
+        parameters:
+            SUB:
+                value: 1000
+            REP:
+                value: 600
+            DEL:
+                value: 100
     decode_trg:
         value: True
     early_stop:

@@ -58,15 +58,19 @@ def main():
             wandb.alert("ERROR: Missing data from config file.")
             exit(1)
 
-        if 'best_hid_dim' in wandb.config:
-            wandb.config['hid_dim'] = int(wandb.config['best_hid_dim'][wandb.config['model_type']])
-            wandb.config['hid_dim_nheads_multiplier'] = wandb.config['hid_dim'] // lcm(wandb.config['enc_heads'], wandb.config['dec_heads'])
-        
-        # Update params. This is to get our hidden dimension number.
-        wandb.config['hid_dim'] = lcm(wandb.config['enc_heads'], wandb.config['dec_heads']) * wandb.config['hid_dim_nheads_multiplier']
+        model_config = wandb.config.copy()
+        for key, value in model_config:
+            if type(value) == dict:
+                model_config[key] = value[wandb.config['model_type']]
 
-        if 'best_hid_dim' in wandb.config:
-            assert wandb.config['hid_dim'] == int(wandb.config['best_hid_dim'][wandb.config['model_type']])
+        if 'hid_dim' in wandb.config: # Pre-defined hidden dimension.
+            model_config['hid_dim_nheads_multiplier'] = model_config['hid_dim'][model_config['model_type']] // lcm(model_config['enc_heads'], model_config['dec_heads'])
+        
+        # # Update params. This is to get our hidden dimension number.
+        model_config['hid_dim'] = lcm(model_config['enc_heads'], model_config['dec_heads']) * model_config['hid_dim_nheads_multiplier']
+
+        if 'hid_dim' in wandb.config:
+            assert model_config['hid_dim'] == wandb.config['hid_dim'][wandb.config['model_type']]
         
         # Set filepaths. We will create temporary files to store the data. This also allows
         # us to train on different hosts.
@@ -123,6 +127,7 @@ def main():
         # Tell Torch that we want to use the GPU
         device = torch.device('cuda')
 
+        print(model_config)
         # Train the model and get the loss
         model, train_loss, test_loss = trk.model_pipeline(device,
                                                           train_data,
@@ -133,7 +138,8 @@ def main():
                                                           ASR,
                                                           TTX_POS,
                                                           ASR_POS,
-                                                          wandb.config['error_tag']
+                                                          wandb.config['error_tag'],
+                                                          config=model_config
                                                           )
 
         # Log that loss to Weights & Biases as a Summary metric.
