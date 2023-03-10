@@ -1,0 +1,57 @@
+method: grid
+metric:
+    name: test_f1
+    goal: maximize
+parameters:
+    val_metric:
+        value: "f1"
+    data:
+        values:
+            [
+                "../repetition_data_generation/data/rep_audio.csv",
+                "../repetition_data_generation/data/sub_audio.csv",
+                "../repetition_data_generation/data/del_audio.csv",
+            ]
+    epochs:
+        value: 256
+    batch_size:
+        value: 64
+    learning_rate:
+        value: 0.00045165055937489
+    enc_layers:
+        value: 4
+    dec_layers:
+        value: 3
+    enc_heads:
+        distribution: q_uniform
+        min: 2
+        max: 12
+        q: 2
+    dec_heads:
+        value: 6
+    enc_pf_dim:
+        value: 80
+    dec_pf_dim:
+        value: 40
+    enc_dropout:
+        value: 0.14212758084066657
+    dec_dropout:
+        value: 0.023742063103977713
+    best_hid_dim:
+        parameters:
+            SUB:
+                value: 240
+            REP:
+                value: 96
+            DEL:
+                value: 144
+    clip:
+        value: 1
+    bpe:
+        value: True
+    bpe_vocab_size:
+        value: 600
+    decode_trg:
+        value: True
+    early_stop:
+        value: 30

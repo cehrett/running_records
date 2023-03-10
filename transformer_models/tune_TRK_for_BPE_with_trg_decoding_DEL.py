@@ -58,13 +58,16 @@ def main():
             wandb.alert("ERROR: Missing data from config file.")
             exit(1)
 
-        if 'hid_dim' in wandb.config:
-            wandb.config['hid_dim'] = int(wandb.config['hid_dim'][wandb.config['model_type']])
+        if 'best_hid_dim' in wandb.config:
+            wandb.config['hid_dim'] = int(wandb.config['best_hid_dim'][wandb.config['model_type']])
             wandb.config['hid_dim_nheads_multiplier'] = wandb.config['hid_dim'] // lcm(wandb.config['enc_heads'], wandb.config['dec_heads'])
         
         # Update params. This is to get our hidden dimension number.
         wandb.config['hid_dim'] = lcm(wandb.config['enc_heads'], wandb.config['dec_heads']) * wandb.config['hid_dim_nheads_multiplier']
 
+        if 'best_hid_dim' in wandb.config:
+            assert wandb.config['hid_dim'] == int(wandb.config['best_hid_dim'][wandb.config['model_type']])
+        
         # Set filepaths. We will create temporary files to store the data. This also allows
         # us to train on different hosts.
         temp_dir = SCRATCH_DIR.joinpath('temp_data').mkdir(parents=False, exist_ok=True)
