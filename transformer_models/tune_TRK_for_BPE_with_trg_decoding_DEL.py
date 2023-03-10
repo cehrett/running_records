@@ -17,11 +17,7 @@ parser = argparse.ArgumentParser(description="Use weights & biases to tune the t
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("-d", "--data", help="data file path", required=False)
 parser.add_argument("-m", "--max_evals", help="number of trials", required=True)
-
-group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument('-s', "--sweep_id", help="Sweep ID for wandb")
-group.add_argument('-r', "--run_source", help="CSV File containing configurations for runs")
-
+parser.add_argument('-s', "--sweep_id", help="Sweep ID for wandb", required=True)
 parser.add_argument('-t', "--error_tag", help="The tag we are interested in tracking. (e.g. -, S, REP)", required=False, nargs='+')
 args = parser.parse_args()
 config = vars(args)
@@ -33,24 +29,41 @@ def lcm(a, b):
     return abs(a*b) // gcd(a, b)
 
 
-def main(run_config=None):
+def main():
     """
     This is our main training routine, using weights and biases to track
     our hyperparamters, results, and suggest new hyperparemeters.
     """
     try:
-        if not run_config:
-            # We'll be using the vals from the sweep config
-            wandb.init(dir=SCRATCH_DIR, tags=["individual_tags_applied"])
-            wandb.config['data'] = config['data']
+        # We'll be using the vals from the sweep config
+        wandb.init(dir=SCRATCH_DIR, tags=["individual_tags_applied"])
+        if 'data' in wandb.config:
+            # Set error tags based on the path passed in
+            if 'rep_audio.csv' in wandb.config['data']:
+                wandb.config['error_tag'] = ['RB2', 'RI2']
+                wandb.config['model_type'] = 'REP'
+            elif 'sub_audio.csv' in wandb.config['data']:
+                wandb.config['error_tag'] = ['SUB']
+                wandb.config['model_type'] = 'SUB'
+            elif 'del_audio.csv' in wandb.config['data']:
+                wandb.config['error_tag'] = ['-']
+                wandb.config['model_type'] = 'DEL'
+            else:
+                wandb.alert("BAD CONFIG. EXITING")
+                exit(1)
+        elif 'error_tag' in config:
             wandb.config['error_tag'] = config['error_tag']
-            print("SWEEP")
+            wandb.config['data'] = config['data']
         else:
-            # Config is passed in from the file.
-            wandb.init(dir=SCRATCH_DIR, config=run_config, tags=["individual_tags_applied"], project="running_records", entity="witw")
+            wandb.alert("ERROR: Missing data from config file.")
+            exit(1)
 
-            print("RUN")
-
+        if 'hid_dim' in wandb.config:
+            wandb.config['hid_dim'] = int(wandb.config['hid_dim'][wandb.config['model_type']])
+            wandb.config['hid_dim_nheads_multiplier'] = wandb.config['hid_dim'] // lcm(wandb.config['enc_heads'], wandb.config['dec_heads'])
+        
+        # Update params. This is to get our hidden dimension number.
+        wandb.config['hid_dim'] = lcm(wandb.config['enc_heads'], wandb.config['dec_heads']) * wandb.config['hid_dim_nheads_multiplier']
 
         # Set filepaths. We will create temporary files to store the data. This also allows
         # us to train on different hosts.
@@ -107,9 +120,6 @@ def main(run_config=None):
         # Tell Torch that we want to use the GPU
         device = torch.device('cuda')
 
-        # Update params. This is to fet our hidden dimension number.
-        wandb.config['hid_dim'] = lcm(wandb.config['enc_heads'], wandb.config['dec_heads']) * wandb.config['hid_dim_nheads_multiplier']
-
         # Train the model and get the loss
         model, train_loss, test_loss = trk.model_pipeline(device,
                                                           train_data,
@@ -135,20 +145,5 @@ def main(run_config=None):
 
 
 if __name__ == '__main__':
-    print(config)
-    if config['sweep_id']:
-        wandb.agent(config['sweep_id'], function=main, count=max_evals,
-                    project="running_records", entity="witw")
-    else:
-        current_runs = pd.read_csv(config['run_source'])
-        for i in range(max_evals):
-            run_config = current_runs.iloc[0].to_dict()
-
-            if "[" == run_config['error_tag'][0]:
-                run_config['error_tag'] = ast.literal_eval(run_config['error_tag'])
-            else:
-                run_config['error_tag'] = [run_config['error_tag']]
-
-            main(run_config)
-            current_runs = current_runs.iloc[1:]
-            current_runs.to_csv(config['run_source'], index=False)
+    wandb.agent(config['sweep_id'], function=main, count=max_evals,
+                project="running_records", entity="witw")
