@@ -44,7 +44,7 @@ def main():
             assert len(best_runs_df) == 1, "ERROR: More than one best run found for this data."
 
             for col in best_runs_df.columns:
-                if col == wandb.config['varied_parameter'] or col == 'hid_dim':
+                if col == wandb.config['varied_parameter']:
                     continue
                 if col == 'hid_dim_nheads_multiplier' and 'heads' in wandb.config['varied_parameter']:
                     continue
@@ -60,7 +60,10 @@ def main():
             wandb.config['hid_dim_nheads_multiplier'] = wandb.config['hid_dim'] // lcm(wandb.config['enc_heads'], wandb.config['dec_heads'])
         
         # Update params. This is to get our hidden dimension number.
-        wandb.config['hid_dim'] = lcm(wandb.config['enc_heads'], wandb.config['dec_heads']) * wandb.config['hid_dim_nheads_multiplier']
+        if 'hid_dim' not in wandb.config:
+            wandb.config['hid_dim'] = lcm(wandb.config['enc_heads'], wandb.config['dec_heads']) * wandb.config['hid_dim_nheads_multiplier']
+        else:
+            assert wandb.config['hid_dim'] == lcm(wandb.config['enc_heads'], wandb.config['dec_heads']) * wandb.config['hid_dim_nheads_multiplier'], "ERROR: hid_dim does not match hid_dim_nheads_multiplier and enc_heads/dec_heads."
         
         # Set filepaths. We will create temporary files to store the data. This also allows
         # us to train on different hosts.
