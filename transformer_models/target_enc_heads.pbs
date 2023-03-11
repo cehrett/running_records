@@ -8,4 +8,4 @@
 source ~/.bashrc
 cd ~/running_records/transformer_models
 conda activate rr_env
-python tune_TRK_for_BPE_with_trg_decoding_DEL.py -m 10 -s witw/running_records/g03s6gsh
+python tune_TRK_for_BPE_with_trg_decoding_DEL.py -m 10 -s witw/running_records/y34il9o7
