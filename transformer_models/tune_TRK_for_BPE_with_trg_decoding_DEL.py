@@ -36,21 +36,17 @@ def main():
     """
     try:
         # We'll be using the vals from the sweep config
-        wandb.init(dir=SCRATCH_DIR, tags=["individual_tags_applied"])
+        wandb.init(dir=SCRATCH_DIR, tags=["individual_tags_applied", "targeted_runs"])
         if 'data' in wandb.config:
-            # Set error tags based on the path passed in
-            if 'rep_audio.csv' in wandb.config['data']:
-                wandb.config['error_tag'] = ['RB2', 'RI2']
-                wandb.config['model_type'] = 'REP'
-            elif 'sub_audio.csv' in wandb.config['data']:
-                wandb.config['error_tag'] = ['SUB']
-                wandb.config['model_type'] = 'SUB'
-            elif 'del_audio.csv' in wandb.config['data']:
-                wandb.config['error_tag'] = ['-']
-                wandb.config['model_type'] = 'DEL'
-            else:
-                wandb.alert("BAD CONFIG. EXITING")
-                exit(1)
+            best_runs_df = pd.read_csv("best_runs.csv")
+            best_runs_df = best_runs_df[best_runs_df['data'] == wandb.config['data']]
+
+            assert len(best_runs_df) == 1, "ERROR: More than one best run found for this data."
+            
+            for col in best_runs_df.columns:
+                if col == wandb.config['varied_parameter']:
+                    continue
+                wandb.config[col] = best_runs_df[col].values[0]
         elif 'error_tag' in config:
             wandb.config['error_tag'] = config['error_tag']
             wandb.config['data'] = config['data']
@@ -58,19 +54,11 @@ def main():
             wandb.alert("ERROR: Missing data from config file.")
             exit(1)
 
-        model_config = wandb.config.copy()
-        for key, value in model_config:
-            if type(value) == dict:
-                model_config[key] = value[wandb.config['model_type']]
-
-        if 'hid_dim' in wandb.config: # Pre-defined hidden dimension.
-            model_config['hid_dim_nheads_multiplier'] = model_config['hid_dim'][model_config['model_type']] // lcm(model_config['enc_heads'], model_config['dec_heads'])
+        if 'heads' in wandb.config['varied_parameter']: # Pre-defined hidden dimension.
+            wandb.config['hid_dim_nheads_multiplier'] = wandb.config['hid_dim'] // lcm(wandb.config['enc_heads'], wandb.config['dec_heads'])
         
-        # # Update params. This is to get our hidden dimension number.
-        model_config['hid_dim'] = lcm(model_config['enc_heads'], model_config['dec_heads']) * model_config['hid_dim_nheads_multiplier']
-
-        if 'hid_dim' in wandb.config:
-            assert model_config['hid_dim'] == wandb.config['hid_dim'][wandb.config['model_type']]
+        # Update params. This is to get our hidden dimension number.
+        wandb.config['hid_dim'] = lcm(wandb.config['enc_heads'], wandb.config['dec_heads']) * wandb.config['hid_dim_nheads_multiplier']
         
         # Set filepaths. We will create temporary files to store the data. This also allows
         # us to train on different hosts.
@@ -127,7 +115,6 @@ def main():
         # Tell Torch that we want to use the GPU
         device = torch.device('cuda')
 
-        print(model_config)
         # Train the model and get the loss
         model, train_loss, test_loss = trk.model_pipeline(device,
                                                           train_data,
@@ -138,8 +125,7 @@ def main():
                                                           ASR,
                                                           TTX_POS,
                                                           ASR_POS,
-                                                          wandb.config['error_tag'],
-                                                          config=model_config
+                                                          wandb.config['error_tag']
                                                           )
 
         # Log that loss to Weights & Biases as a Summary metric.

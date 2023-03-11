@@ -3,8 +3,6 @@ metric:
     name: test_f1
     goal: maximize
 parameters:
-    val_metric:
-        value: "f1"
     data:
         values:
             [
@@ -12,100 +10,10 @@ parameters:
                 "../repetition_data_generation/data/sub_audio.csv",
                 "../repetition_data_generation/data/del_audio.csv",
             ]
-    epochs:
-        value: 256
-    batch_size:
-        value: 64
-    learning_rate:
-        parameters:
-            SUB:
-                value: 0.00029720928519494594
-            REP:
-                value: 0.00045165055937489
-            DEL:
-                value: 0.000527372316961992
-    enc_layers:
-        parameters:
-            SUB:
-                value: 3
-            REP:
-                value: 4
-            DEL:
-                value: 3
-    dec_layers:
-        parameters:
-            SUB:
-                value: 3
-            REP:
-                value: 3
-            DEL:
-                value: 2
     enc_heads:
         distribution: q_uniform
         min: 2
         max: 12
         q: 2
-    dec_heads:
-        parameters:
-            SUB:
-                value: 6
-            REP:
-                value: 6
-            DEL:
-                value: 12
-    enc_pf_dim:
-        parameters:
-            SUB:
-                value: 80
-            REP:
-                value: 80
-            DEL:
-                value: 240
-    dec_pf_dim:
-        parameters:
-            SUB:
-                value: 720
-            REP:
-                value: 40
-            DEL:
-                value: 40
-    enc_dropout:
-        parameters:
-            SUB:
-                value: 0.06742411219665648
-            REP:
-                value: 0.14212758084066657
-            DEL:
-                value: 0.08897067871999473
-    dec_dropout:
-        parameters:
-            SUB:
-                value: 0.036984241673061344
-            REP:
-                value: 0.023742063103977713
-            DEL:
-                value: 0.02501199966397636
-    hid_dim:
-        parameters:
-            SUB:
-                value: 240
-            REP:
-                value: 96
-            DEL:
-                value: 144
-    clip:
-        value: 1
-    bpe:
-        value: True
-    bpe_vocab_size:
-        parameters:
-            SUB:
-                value: 1000
-            REP:
-                value: 600
-            DEL:
-                value: 100
-    decode_trg:
-        value: True
-    early_stop:
-        value: 30
+    varied_parameter:
+        value: enc_heads
