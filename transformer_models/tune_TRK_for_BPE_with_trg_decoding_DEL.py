@@ -42,9 +42,11 @@ def main():
             best_runs_df = best_runs_df[best_runs_df['data'] == wandb.config['data']]
 
             assert len(best_runs_df) == 1, "ERROR: More than one best run found for this data."
-            
+
             for col in best_runs_df.columns:
                 if col == wandb.config['varied_parameter']:
+                    continue
+                if col == 'hid_dim_nheads_multiplier' and 'heads' in wandb.config['varied_parameter']:
                     continue
                 wandb.config[col] = best_runs_df[col].values[0]
         elif 'error_tag' in config:
