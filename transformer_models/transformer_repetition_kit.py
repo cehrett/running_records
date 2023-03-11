@@ -240,10 +240,10 @@ def model_pipeline(device,
                    ASR,
                    TTX_POS,
                    ASR_POS,
-                   error_tags,
-                   config=wandb.config
+                   error_tags
                    ):
 
+    config = wandb.config
     # make the model, data, and optimization problem
     model, train_iterator, valid_iterator, test_iterator, criterion, optimizer = make(config,
                                                                                       device,
