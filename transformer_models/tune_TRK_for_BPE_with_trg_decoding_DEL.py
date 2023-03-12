@@ -50,6 +50,8 @@ def main():
                     continue
                 elif col == 'error_tag':
                     wandb.config[col] = ast.literal_eval(best_runs_df.iloc[0][col])
+                    print("Detected error_tag: ", wandb.config[col])
+                    print("Will report F1 Scores for ", len(wandb.config[col]), " tags.")
                 else:
                     wandb.config[col] = best_runs_df[col].values[0]
         elif 'error_tag' in config:
