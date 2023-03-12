@@ -46,9 +46,12 @@ def main():
             for col in best_runs_df.columns:
                 if col == wandb.config['varied_parameter']:
                     continue
-                if col == 'hid_dim_nheads_multiplier' and 'heads' in wandb.config['varied_parameter']:
+                elif col == 'hid_dim_nheads_multiplier' and 'heads' in wandb.config['varied_parameter']:
                     continue
-                wandb.config[col] = best_runs_df[col].values[0]
+                elif col == 'error_tag':
+                    wandb.config[col] = ast.literal_eval(best_runs_df.iloc[0][col])
+                else:
+                    wandb.config[col] = best_runs_df[col].values[0]
         elif 'error_tag' in config:
             wandb.config['error_tag'] = config['error_tag']
             wandb.config['data'] = config['data']
