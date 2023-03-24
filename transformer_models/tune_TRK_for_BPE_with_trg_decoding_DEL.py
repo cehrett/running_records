@@ -48,6 +48,8 @@ def main():
                     continue
                 elif col == 'hid_dim_nheads_multiplier' and 'heads' in wandb.config['varied_parameter']:
                     continue
+                elif col == 'hid_dim' and 'hid_dim_nheads_multiplier' in wandb.config['varied_parameter']:
+                    continue
                 elif col == 'error_tag':
                     wandb.config[col] = ast.literal_eval(best_runs_df.iloc[0][col])
                     print("Detected error_tag: ", wandb.config[col])
@@ -61,7 +63,7 @@ def main():
             wandb.alert("ERROR: Missing data from config file.")
             exit(1)
 
-        if 'heads' in wandb.config['varied_parameter']: # Pre-defined hidden dimension.
+        if 'heads' in wandb.config['varied_parameter'] and wandb.config['varied_parameter'] != 'hid_dim_nheads_multiplier': # Pre-defined hidden dimension.
             wandb.config['hid_dim_nheads_multiplier'] = wandb.config['hid_dim'] // lcm(wandb.config['enc_heads'], wandb.config['dec_heads'])
         
         # Update params. This is to get our hidden dimension number.
